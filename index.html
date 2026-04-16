@@ -1,0 +1,1368 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Racoon — NEXIS Storage Monitor</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+:root {
+  /* Tanooki-inspired: near-black bg, vivid purple accent, cool dark surfaces */
+  --bg:#0b0b12;
+  --surface:#13131f;
+  --card:#0e0e1a;
+  --border:#1e1e30;
+  --border2:#2a2a42;
+  --text:#e8e8f0;
+  --muted:#6b6b8e;
+  --muted2:#3a3a55;
+  --accent:#7c3aed;        /* tanooki purple */
+  --accent-lt:#a78bfa;     /* lighter purple for text on dark */
+  --accent-glow:rgba(124,58,237,.25);
+  --red:#f87171;
+  --amber:#fbbf24;
+  --green:#34d399;
+  --white:#ffffff;
+  --grad: linear-gradient(135deg,#7c3aed 0%,#6d28d9 100%);
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--text);font-family:'Inter',system-ui,sans-serif;font-size:14px;line-height:1.5;min-height:100vh;}
+
+/* Subtle dot-grid background like tanooki.io */
+body::before{
+  content:'';
+  position:fixed;inset:0;
+  background-image:radial-gradient(circle,rgba(124,58,237,.08) 1px,transparent 1px);
+  background-size:28px 28px;
+  pointer-events:none;
+  z-index:0;
+}
+body > *{position:relative;z-index:1;}
+
+/* Header */
+header{display:flex;align-items:center;justify-content:space-between;padding:0 40px;height:64px;border-bottom:1px solid var(--border);background:rgba(11,11,18,.92);backdrop-filter:blur(12px);position:sticky;top:0;z-index:100;}
+.logo{height:28px;filter:brightness(0) invert(1);}
+.hright{display:flex;align-items:center;gap:16px;}
+.htag{font-size:11px;font-weight:500;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);border:1px solid var(--border2);padding:4px 10px;border-radius:20px;}
+.uts{font-size:11px;font-weight:500;color:var(--accent-lt);background:rgba(124,58,237,.1);border:1px solid rgba(124,58,237,.3);padding:4px 10px;border-radius:20px;display:none;}
+.clock{font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums;}
+.dot{width:7px;height:7px;border-radius:50%;background:var(--muted2);transition:all .3s;}
+.dot.live{background:var(--green);box-shadow:0 0 0 3px rgba(52,211,153,.2);animation:dp 2.5s ease-in-out infinite;}
+@keyframes dp{0%,100%{opacity:1;}50%{opacity:.4;}}
+
+/* Upload page */
+#upload-page{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:calc(100vh - 64px);padding:40px;}
+.ulogo{height:44px;margin-bottom:36px;opacity:.25;filter:brightness(0) invert(1);}
+.ucard{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:40px;max-width:520px;width:100%;box-shadow:0 0 60px rgba(124,58,237,.08);}
+.utitle{font-size:20px;font-weight:600;color:var(--white);margin-bottom:8px;}
+.usub{font-size:13px;color:var(--muted);margin-bottom:24px;line-height:1.7;}
+
+/* File input */
+input[type=file]#csv-input{
+  display:block;width:100%;font-size:13px;font-family:inherit;
+  color:var(--text);background:var(--card);
+  border:1px solid var(--border2);border-radius:10px;
+  padding:10px 14px;cursor:pointer;margin-bottom:12px;
+  transition:border-color .2s;
+}
+input[type=file]#csv-input:hover{border-color:var(--accent);}
+input[type=file]#csv-input::file-selector-button{
+  background:var(--grad);color:#fff;border:none;
+  padding:6px 16px;border-radius:6px;font-weight:600;font-size:12px;
+  cursor:pointer;margin-right:12px;font-family:inherit;
+  transition:opacity .15s;
+}
+input[type=file]#csv-input::file-selector-button:hover{opacity:.85;}
+input[type=file]#csv-input::-webkit-file-upload-button{
+  background:#7c3aed;color:#fff;border:none;
+  padding:6px 16px;border-radius:6px;font-weight:600;font-size:12px;
+  cursor:pointer;margin-right:12px;
+}
+.drop-hint{font-size:12px;color:var(--muted2);margin-bottom:16px;}
+
+.file-list{display:flex;flex-direction:column;gap:8px;margin-bottom:16px;}
+.fp{display:flex;align-items:center;justify-content:space-between;background:var(--card);border:1px solid var(--border);border-radius:10px;padding:10px 14px;}
+.fp-name{font-size:13px;color:var(--white);font-weight:500;}
+.fp-meta{font-size:11px;color:var(--muted);margin-top:2px;}
+.fp-warn{color:var(--amber)!important;}
+.fp-rm{background:none;border:none;color:var(--muted2);cursor:pointer;font-size:18px;line-height:1;padding:0 4px;transition:color .15s;}
+.fp-rm:hover{color:var(--red);}
+.btn-view{width:100%;padding:13px;background:var(--grad);color:#fff;font-size:14px;font-weight:600;border:none;border-radius:10px;cursor:pointer;font-family:inherit;display:none;box-shadow:0 4px 24px rgba(124,58,237,.3);transition:opacity .15s;}
+.btn-view:hover{opacity:.88;}
+
+/* Dashboard */
+#dashboard{display:none;}
+
+/* Summary bar */
+.sum-bar{display:grid;grid-template-columns:repeat(5,1fr);border-bottom:1px solid var(--border);background:var(--surface);}
+.sc{padding:20px 28px;border-right:1px solid var(--border);}
+.sc:last-child{border-right:none;}
+.sl{font-size:10px;font-weight:600;color:var(--muted);letter-spacing:.1em;text-transform:uppercase;margin-bottom:10px;}
+.sv{font-size:26px;font-weight:700;color:var(--white);letter-spacing:-.02em;}
+.ss{font-size:11px;color:var(--muted);margin-top:4px;}
+
+/* Source panel */
+.src-panel{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:10px 40px;border-bottom:1px solid var(--border);background:var(--card);}
+.src-lbl{font-size:10px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.08em;margin-right:4px;}
+.src-pill{display:inline-flex;align-items:center;gap:6px;background:var(--surface);border:1px solid var(--border2);border-radius:20px;padding:3px 12px;font-size:11px;color:var(--text);}
+.src-rm{background:none;border:none;color:var(--muted2);cursor:pointer;font-size:13px;line-height:1;transition:color .15s;}
+.src-rm:hover{color:var(--red);}
+.add-more-label{display:inline-flex;align-items:center;border:1px dashed var(--border2);border-radius:20px;padding:3px 12px;font-size:11px;color:var(--muted);cursor:pointer;transition:all .15s;}
+.add-more-label:hover{border-color:var(--accent);color:var(--accent-lt);}
+#csv-more{display:none;}
+
+/* Toolbar */
+.toolbar{display:flex;align-items:center;gap:10px;padding:14px 40px;border-bottom:1px solid var(--border);background:var(--surface);flex-wrap:wrap;position:sticky;top:64px;z-index:10;}
+.tab-grp{display:flex;gap:2px;background:var(--card);border-radius:10px;padding:4px;}
+.tab{padding:6px 18px;font-size:13px;font-weight:500;border-radius:7px;cursor:pointer;border:none;background:transparent;color:var(--muted);font-family:inherit;transition:all .2s;}
+.tab:hover{color:var(--text);}
+.tab.active{background:var(--grad);color:#fff;box-shadow:0 2px 12px rgba(124,58,237,.35);}
+.tsep{flex:1;}
+.btn-share{display:inline-flex;align-items:center;gap:7px;padding:8px 18px;background:var(--grad);color:#fff;font-size:12px;font-weight:600;border:none;border-radius:8px;cursor:pointer;font-family:inherit;box-shadow:0 2px 16px rgba(124,58,237,.3);transition:opacity .15s;}
+.btn-share:hover{opacity:.88;}
+.srch{background:var(--card);border:1px solid var(--border2);color:var(--text);font-size:13px;padding:7px 12px;border-radius:8px;width:200px;outline:none;font-family:inherit;transition:border-color .2s;}
+.srch:focus{border-color:var(--accent);}
+.srch::placeholder{color:var(--muted2);}
+.srt{padding:7px 12px;font-size:12px;font-weight:500;border:1px solid var(--border2);background:transparent;color:var(--muted);border-radius:8px;cursor:pointer;font-family:inherit;transition:all .15s;}
+.srt:hover,.srt.active{border-color:var(--accent);color:var(--accent-lt);background:rgba(124,58,237,.08);}
+.chip{padding:5px 12px;font-size:11px;font-weight:500;border:1px solid var(--border2);background:transparent;color:var(--muted);border-radius:20px;cursor:pointer;font-family:inherit;transition:all .15s;}
+.chip:hover{border-color:var(--accent);color:var(--accent-lt);}
+.chip.active{border-color:var(--accent);color:var(--accent-lt);background:rgba(124,58,237,.12);}
+
+/* Table */
+.content{padding:0 40px 48px;background:var(--bg);}
+.twrap{overflow-x:auto;overflow-y:auto;max-height:calc(100vh - 200px);}
+table{width:100%;border-collapse:collapse;}
+thead th{padding:12px 16px;text-align:left;font-size:10px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);border-bottom:1px solid var(--border);white-space:nowrap;cursor:pointer;user-select:none;background:var(--surface);position:sticky;top:0;z-index:2;}
+thead th:hover{color:var(--accent-lt);}
+tbody tr{border-bottom:1px solid var(--border);transition:background .1s;}
+tbody tr:hover{background:var(--surface);}
+tbody tr:last-child{border-bottom:none;}
+td{padding:13px 16px;font-size:13px;white-space:nowrap;}
+.pb{display:inline-block;padding:3px 10px;font-size:11px;font-weight:500;border-radius:20px;background:rgba(124,58,237,.12);color:var(--accent-lt);}
+.tb{display:inline-block;padding:3px 10px;font-size:11px;font-weight:500;border-radius:20px;background:rgba(255,255,255,.04);color:var(--muted);}
+.nb{display:inline-block;padding:3px 10px;font-size:11px;border-radius:20px;background:rgba(124,58,237,.1);color:var(--accent-lt);max-width:140px;overflow:hidden;text-overflow:ellipsis;}
+.bw{display:flex;align-items:center;gap:10px;min-width:140px;}
+.bt{flex:1;height:4px;background:var(--border);border-radius:4px;overflow:hidden;}
+.bf{height:100%;border-radius:4px;transition:width .5s cubic-bezier(.4,0,.2,1);}
+.bp{font-size:11px;color:var(--muted);min-width:38px;text-align:right;font-variant-numeric:tabular-nums;}
+.sbar{display:flex;height:6px;gap:1px;overflow:hidden;border-radius:4px;min-width:140px;}
+.seg{height:100%;flex-shrink:0;}
+.thdot{display:inline-block;width:6px;height:6px;border-radius:50%;margin-right:6px;vertical-align:middle;}
+.nores{text-align:center;padding:80px 40px;color:var(--muted);font-size:14px;}
+
+/* DNxLB */
+.dnx-wrap{padding:32px 40px;}
+.dnx-info{font-size:13px;color:var(--muted);margin-bottom:24px;line-height:1.7;}
+.dnx-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px;}
+.dnx-card{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:20px 24px;position:relative;overflow:hidden;transition:border-color .2s,box-shadow .2s;}
+.dnx-card:hover{border-color:rgba(124,58,237,.4);box-shadow:0 0 30px rgba(124,58,237,.1);}
+.dnx-card::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;background:var(--grad);}
+.dnx-cname{font-size:14px;font-weight:600;color:var(--white);margin-bottom:16px;}
+.dnx-row{display:flex;justify-content:space-between;align-items:center;font-size:12px;margin-bottom:4px;}
+.dnx-rl{color:var(--muted);}
+.dnx-rv{font-family:monospace;color:var(--text);}
+.dnx-div{border:none;border-top:1px solid var(--border);margin:12px 0;}
+.dnx-tot{display:flex;justify-content:space-between;align-items:baseline;}
+.dnx-tl{font-size:12px;color:var(--muted);}
+.dnx-tv{font-size:13px;font-weight:600;color:var(--text);}
+.dnx-hrs{display:flex;justify-content:space-between;align-items:baseline;margin-top:10px;}
+.dnx-hl{font-size:10px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;}
+.dnx-hv{font-size:32px;font-weight:700;color:var(--accent-lt);letter-spacing:-.02em;}
+.dnx-hu{font-size:13px;color:var(--muted);margin-left:4px;}
+.dnx-empty{text-align:center;padding:80px 40px;color:var(--muted);font-size:14px;}
+/* OFF vs Quote tab */
+.qv-wrap{padding:32px 40px;}
+.qv-info{font-size:13px;color:var(--muted);margin-bottom:24px;line-height:1.7;}
+.qv-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px;}
+.qv-card{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:20px 24px;position:relative;overflow:hidden;transition:border-color .2s,box-shadow .2s;}
+.qv-card:hover{box-shadow:0 0 24px rgba(124,58,237,.08);}
+.qv-card::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;background:var(--grad);}
+.qv-card.qv-warn::before{background:linear-gradient(135deg,#f97316,#ea580c);}
+.qv-card.qv-crit::before{background:linear-gradient(135deg,#ef4444,#dc2626);}
+.qv-card.qv-warn{border-color:rgba(249,115,22,.35);}
+.qv-card.qv-crit{border-color:rgba(239,68,68,.45);}
+.qv-name{font-size:14px;font-weight:600;color:var(--white);margin-bottom:14px;}
+.qv-row{display:flex;justify-content:space-between;align-items:center;font-size:12px;margin-bottom:4px;}
+.qv-rl{color:var(--muted);}
+.qv-rv{font-family:monospace;color:var(--text);}
+.qv-divider{border:none;border-top:1px solid var(--border);margin:12px 0;}
+.qv-totrow{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:14px;}
+.qv-totl{font-size:12px;color:var(--muted);}
+.qv-totv{font-size:16px;font-weight:700;color:var(--text);}
+.qv-bar-section{}
+.qv-bar-labels{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px;}
+.qv-bar-lbl{font-size:10px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;}
+.qv-bar-quota{font-size:12px;font-weight:600;color:var(--muted);}
+.qv-bar-wrap{height:8px;background:var(--border);border-radius:4px;overflow:hidden;margin-bottom:6px;}
+.qv-bar{height:100%;border-radius:4px;transition:width .6s cubic-bezier(.4,0,.2,1);}
+.qv-pct{font-size:13px;font-weight:700;text-align:right;}
+.qv-noalloc{font-size:11px;color:var(--muted2);font-style:italic;margin-top:8px;}
+.qv-empty{text-align:center;padding:80px 40px;color:var(--muted);font-size:14px;}
+.qv-loading{text-align:center;padding:60px 40px;color:var(--muted);font-size:13px;}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* Footer */
+footer{padding:20px 40px;border-top:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;font-size:11px;color:var(--muted);background:var(--surface);}
+.flogo{height:16px;opacity:.2;filter:brightness(0) invert(1);}
+</style>
+</head>
+<body>
+
+<header>
+  <img src="https://racoon.io/wp-content/uploads/2022/11/racoon-logo.png" alt="Racoon" class="logo">
+  <div class="hright">
+    <span class="htag">NEXIS Storage Monitor</span>
+    <span class="uts" id="uts"></span>
+    <div class="dot" id="dot"></div>
+    <span class="clock" id="clock">--:--:--</span>
+  </div>
+</header>
+
+<!-- Upload -->
+<div id="upload-page">
+  <img src="https://racoon.io/wp-content/uploads/2022/11/racoon-logo.png" alt="" class="ulogo">
+  <div class="ucard">
+    <div class="utitle">NEXIS Workspace Storage</div>
+    <div class="usub">Select one or more NEXIS workspace CSV exports.<br>Hold <strong>Ctrl</strong> (Windows) or <strong>Cmd</strong> (Mac) to pick multiple files at once.<br><span style="color:var(--accent-lt);font-size:12px;">&#9632; Also include your <strong>Quote_Storage Totals.csv</strong> to enable the OFF vs Quote tab.</span></div>
+    <input type="file" id="csv-input" accept=".csv" multiple>
+    <div class="drop-hint">or drag and drop CSV files anywhere on this card</div>
+    <div class="file-list" id="file-list"></div>
+    <button class="btn-view" id="btn-view" onclick="buildDashboard()">View Dashboard &rarr;</button>
+  </div>
+</div>
+
+<!-- Dashboard -->
+<div id="dashboard">
+  <div class="src-panel" id="src-panel"></div>
+  <div class="sum-bar"   id="sum-bar"></div>
+  <div class="toolbar">
+    <div class="tab-grp">
+      <button class="tab active" id="tab-ws"  onclick="switchView('ws')">Workspaces</button>
+      <button class="tab"        id="tab-pr"  onclick="switchView('proj')">Project Totals</button>
+      <button class="tab"        id="tab-dnx" onclick="switchView('dnx')">DNxLB Hours</button>
+      <button class="tab"        id="tab-qv"  onclick="switchView('qv')">OFF vs Quote</button>
+    </div>
+    <div class="tsep"></div>
+    <button class="btn-share" onclick="shareView()">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+      Share View
+    </button>
+    <div id="ws-ctrl" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <input class="srch" id="ws-q" placeholder="Filter&hellip;" oninput="renderWS()">
+      <button class="srt" onclick="setSort('project')">Project</button>
+      <button class="srt active" onclick="setSort('used')">Usage &updownarrow;</button>
+      <button class="srt" onclick="setSort('name')">A&ndash;Z</button>
+    </div>
+    <div id="pr-ctrl" style="display:none;gap:8px;align-items:center;flex-wrap:wrap">
+      <input class="srch" id="pr-q" placeholder="Filter projects&hellip;" oninput="renderProj()">
+      <button class="srt active" id="pr-su" onclick="setProjSort('totalUsed')">Usage &updownarrow;</button>
+      <button class="srt"        id="pr-sn" onclick="setProjSort('project')">A&ndash;Z</button>
+    </div>
+    <div id="dnx-ctrl" style="display:none"></div>
+    <div id="qv-ctrl"  style="display:none;gap:8px;align-items:center;flex-wrap:wrap"><input class="srch" id="qv-q" placeholder="Filter projects…" oninput="renderQV()"></div>
+  </div>
+  <div class="content">
+    <div class="twrap" id="tbl"></div>
+    <div id="dnx-panel" style="display:none"></div>
+    <div id="qv-panel"  style="display:none"></div>
+  </div>
+</div>
+
+<footer>
+  <img src="https://racoon.io/wp-content/uploads/2022/11/racoon-logo.png" alt="Racoon" class="flogo">
+  <span id="footer-txt">No data loaded</span>
+</footer>
+
+<script>
+const ALLOWED = new Set(['OFF','OFF2','OFF_2','FD','ON','PROJ','RENDER','HDR','SDR','ONLINE']);
+const COLORS  = ['#e8ff47','#ff6b35','#3ddc84','#60a5fa','#f472b6','#a78bfa','#fb923c','#34d399','#f87171','#38bdf8'];
+const DNX_GB  = 20;
+const files = {};
+let allRows = [], allTypes = [], activeTypes = new Set();
+let wsK = 'project', wsD = 1, prK = 'project', prD = 1;
+// Allocation data loaded from Quote CSV {projectName -> quotedTB}
+let allocations = {};
+
+// Clock
+setInterval(() => document.getElementById('clock').textContent = new Date().toLocaleTimeString('en-GB'), 1000);
+document.getElementById('clock').textContent = new Date().toLocaleTimeString('en-GB');
+
+// ── File input ─────────────────────────────────────────────────────────────
+// No resets, no timeouts, no tricks. Plain onchange on a visible native input.
+document.getElementById('csv-input').onchange = function() {
+  if (this.files && this.files.length) readFiles(this.files);
+};
+
+// Drag onto the upload card
+const ucard = document.querySelector('.ucard');
+ucard.addEventListener('dragover', e => { e.preventDefault(); ucard.style.borderColor = 'var(--accent)'; });
+ucard.addEventListener('dragleave', () => ucard.style.borderColor = '');
+ucard.addEventListener('drop', e => {
+  e.preventDefault();
+  ucard.style.borderColor = '';
+  readFiles(e.dataTransfer.files);
+});
+
+// "Add more" label in dashboard (label wraps hidden input so click works natively)
+document.getElementById('csv-more').onchange = function() {
+  if (this.files && this.files.length) readFiles(this.files);
+};
+
+function readFiles(fileList) {
+  Array.from(fileList).filter(f => f.name.toLowerCase().endsWith('.csv')).forEach(function(file) {
+    var fr = new FileReader();
+    fr.onload = function(ev) {
+      // Detect Quote file by name — any CSV with 'quote' in the filename
+      if (file.name.toLowerCase().indexOf('quote') !== -1) {
+        allocations = parseQuoteCSV(ev.target.result);
+        console.log('Quote data loaded:', Object.keys(allocations).length, 'projects:', allocations);
+        files[file.name] = { rows: [], isQuote: true, count: Object.keys(allocations).length };
+        refreshUI();
+        // Re-render QV tab if it is currently visible
+        var qp = document.getElementById('qv-panel');
+        if (qp && qp.style.display !== 'none') renderQV();
+        return;
+      }
+      var rows = parseCSV(ev.target.result, file.name);
+      files[file.name] = { rows: rows };
+      refreshUI();
+      if (document.getElementById('dashboard').style.display !== 'none') rebuildDashboard();
+    };
+    fr.readAsText(file);
+  });
+}
+
+function refreshUI() {
+  var entries = Object.entries(files);
+  document.getElementById('file-list').innerHTML = entries.map(function(e) {
+    var name = e[0], f = e[1];
+    if (f.isQuote) {
+      return '<div class="fp">'
+        + '<div><div class="fp-name">' + esc(name) + '</div>'
+        + '<div class="fp-meta" style="color:var(--accent-lt)">&#9632; Quote data &mdash; ' + f.count + ' projects loaded</div></div>'
+        + '<button class="fp-rm" onclick="removeFile(\'' + esc(name) + '\')">&#215;</button>'
+        + '</div>';
+    }
+    var ok = f.rows.length > 0;
+    return '<div class="fp">'
+      + '<div><div class="fp-name">' + esc(name) + '</div>'
+      + '<div class="fp-meta' + (ok ? '' : ' fp-warn') + '">'
+      + (ok ? f.rows.length + ' workspaces' : '&#9888; No valid rows found') + '</div></div>'
+      + '<button class="fp-rm" onclick="removeFile(\'' + esc(name) + '\')">&#215;</button>'
+      + '</div>';
+  }).join('');
+  var hasData = entries.some(function(e) { return !e[1].isQuote && e[1].rows.length > 0; });
+  document.getElementById('btn-view').style.display = hasData ? 'block' : 'none';
+}
+
+function removeFile(name) {
+  if (files[name] && files[name].isQuote) { allocations = {}; }
+  delete files[name];
+  refreshUI();
+  if (!Object.keys(files).length && document.getElementById('dashboard').style.display !== 'none') {
+    document.getElementById('dashboard').style.display = 'none';
+    document.getElementById('upload-page').style.display = 'flex';
+    document.getElementById('dot').classList.remove('live');
+  }
+}
+
+// ── Parse CSV ──────────────────────────────────────────────────────────────
+function parseCSV(text, src) {
+  var lines = text.trim().split('\n').map(function(l) { return l.trim(); }).filter(Boolean);
+  if (lines.length < 2) return [];
+  var h   = lines[0].split(',').map(function(x) { return x.trim().toLowerCase().replace(/['"]/g,''); });
+  var cN  = Math.max(0, h.findIndex(function(x) { return x === 'name'; }));
+  var cU  = h.findIndex(function(x) { return x === 'used (gb)'; });
+  var cC  = h.findIndex(function(x) { return x === 'capacity (gb)'; });
+  var cG  = h.findIndex(function(x) { return x.includes('storage group'); });
+  var colU = cU !== -1 ? cU : 5, colC = cC !== -1 ? cC : 1, colG = cG !== -1 ? cG : 12;
+  var rows = [];
+  for (var i = 1; i < lines.length; i++) {
+    var c = lines[i].split(',');
+    if (c.length < 2) continue;
+    var name    = c[cN].replace(/['"]/g,'').trim();
+    var parts   = name.split('_');
+    // ── Workspace type: last segment(s) ───────────────────────────────────
+    // Detect OFF_2 (last two parts are 'OFF' and '2')
+    var wsType, typeLen;
+    if (parts.length >= 3 && parts[parts.length-1] === '2' && parts[parts.length-2] === 'OFF') {
+      wsType  = 'OFF_2';
+      typeLen = 2;
+    } else {
+      wsType  = parts.length > 1 ? parts[parts.length - 1] : '-';
+      typeLen = 1;
+    }
+    if (!ALLOWED.has(wsType)) continue;
+    // ── Project: ProjectName + Series (everything up to and including _S[n]) ─
+    // Pattern: Name_S[digits]_[optional EP/TX...]_WorkspaceType
+    // Find the last segment matching S followed by digits (e.g. S1, S2, S12)
+    var project;
+    var seriesIdx = -1;
+    for (var pi = 0; pi < parts.length - typeLen; pi++) {
+      if (/^S\d+$/i.test(parts[pi])) seriesIdx = pi;
+    }
+    if (seriesIdx !== -1) {
+      // Project = everything up to and including the series segment
+      project = parts.slice(0, seriesIdx + 1).join('_');
+    } else {
+      // No series found — project = everything before the wsType segment(s)
+      project = parts.slice(0, parts.length - typeLen).join('_') || name;
+    }
+    var cap   = parseFloat(c[colC]) || 0;
+    var used  = parseFloat(c[colU]) || 0;
+    var group = c[colG] ? c[colG].replace(/['"]/g,'').trim() : '-';
+    var pct   = cap > 0 ? (used / cap) * 100 : 0;
+    rows.push({ name:name, project:project, wsType:wsType, capacity:cap, used:used, pct:pct, storageGroup:group, source:src });
+  }
+  return rows;
+}
+
+// ── Dashboard ──────────────────────────────────────────────────────────────
+function buildDashboard() {
+  allRows = Object.values(files).reduce(function(a, f) { return a.concat(f.rows); }, []);
+  if (!allRows.length) return;
+  allTypes    = Array.from(new Set(allRows.map(function(r) { return r.wsType; }))).sort();
+  activeTypes = new Set();
+  document.getElementById('upload-page').style.display = 'none';
+  document.getElementById('dashboard').style.display   = 'block';
+  document.getElementById('dot').classList.add('live');
+  var now = new Date();
+  var u   = document.getElementById('uts');
+  u.textContent = 'Updated ' + now.toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short'}) + ' \u00b7 ' + now.toLocaleTimeString('en-GB');
+  u.style.display = 'inline-block';
+  buildSrcPanel(); buildSummary(); buildTypeChips(); renderWS();
+  document.getElementById('footer-txt').textContent = 'Loaded: ' + Object.keys(files).join(', ');
+
+}
+
+function rebuildDashboard() {
+  if (!Object.keys(files).length) {
+    document.getElementById('dashboard').style.display = 'none';
+    document.getElementById('upload-page').style.display = 'flex';
+    document.getElementById('dot').classList.remove('live');
+    return;
+  }
+  allRows = Object.values(files).reduce(function(a, f) { return a.concat(f.rows); }, []);
+  allTypes    = Array.from(new Set(allRows.map(function(r) { return r.wsType; }))).sort();
+  activeTypes = new Set();
+  buildSrcPanel(); buildSummary(); buildTypeChips();
+  if (document.getElementById('tab-ws').classList.contains('active')) renderWS();
+  else if (document.getElementById('tab-pr').classList.contains('active')) renderProj();
+  else renderDNxLB();
+}
+
+function buildSrcPanel() {
+  var html = '<span class="src-lbl">Sources (' + Object.keys(files).length + ')</span>';
+  html += Object.keys(files).map(function(n) {
+    return '<span class="src-pill">' + esc(n)
+      + '<button class="src-rm" onclick="removeFile(\'' + esc(n) + '\')">&#215;</button></span>';
+  }).join('');
+  html += '<label class="add-more-label" for="csv-more">+ Add more</label>'
+       + '<input type="file" id="csv-more" accept=".csv" multiple style="display:none">';
+  document.getElementById('src-panel').innerHTML = html;
+  // Re-attach onchange since innerHTML replaced the element
+  var more = document.getElementById('csv-more');
+  if (more) more.onchange = function() { if (this.files && this.files.length) readFiles(this.files); };
+}
+
+function buildSummary() {
+  var tC = allRows.reduce(function(s,r){return s+r.capacity;},0);
+  var tU = allRows.reduce(function(s,r){return s+r.used;},0);
+  var pr = new Set(allRows.map(function(r){return r.project;})).size;
+  var p  = tC > 0 ? (tU/tC)*100 : 0;
+  var cards = [
+    {l:'NEXIS Systems',v:Object.keys(files).length,s:'sources'},
+    {l:'Workspaces',   v:allRows.length,            s:'total'},
+    {l:'Projects',     v:pr,                        s:'unique'},
+    {l:'Total Used',   v:fmt(tU),                   s:'of '+fmt(tC)},
+    {l:'Utilisation',  v:p.toFixed(1)+'%',
+     s:p>90?'\u26a0 critical':p>75?'\u2191 high':'\u2713 healthy',
+     c:p>90?'var(--red)':p>75?'var(--amber)':'var(--green)'}
+  ];
+  document.getElementById('sum-bar').innerHTML = cards.map(function(c){
+    return '<div class="sc"><div class="sl">'+c.l+'</div>'
+      +'<div class="sv"'+(c.c?' style="color:'+c.c+'"':'')+'>'+c.v+'</div>'
+      +'<div class="ss">'+(c.s||'')+'</div></div>';
+  }).join('');
+}
+
+function buildTypeChips() {
+  var h = '<button class="chip active" id="chip-all" onclick="toggleAll()">All</button>';
+  allTypes.forEach(function(t,i){
+    var col = COLORS[i%COLORS.length];
+    h += '<button class="chip" id="chip-'+t+'" onclick="toggleType(\''+t+'\''+')">'
+       + '<span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:'+col+';margin-right:4px;vertical-align:middle"></span>'
+       + t+'</button>';
+  });
+  document.getElementById('type-chips').innerHTML = h;
+}
+
+function toggleAll() {
+  activeTypes = new Set();
+  document.querySelectorAll('#type-chips .chip').forEach(function(c){c.classList.remove('active');});
+  document.getElementById('chip-all').classList.add('active');
+  renderProj();
+}
+function toggleType(t) {
+  document.getElementById('chip-all').classList.remove('active');
+  if (activeTypes.has(t)) { activeTypes.delete(t); document.getElementById('chip-'+t).classList.remove('active'); if (!activeTypes.size) toggleAll(); }
+  else { activeTypes.add(t); document.getElementById('chip-'+t).classList.add('active'); }
+  renderProj();
+}
+
+function switchView(v) {
+  ['ws','pr','dnx','qv'].forEach(function(x){
+    var isActive = (x==='ws'&&v==='ws')||(x==='pr'&&v==='proj')||(x==='dnx'&&v==='dnx')||(x==='qv'&&v==='qv');
+    document.getElementById('tab-'+x).classList.toggle('active', isActive);
+  });
+  document.getElementById('ws-ctrl').style.display  = v==='ws'   ? 'flex' : 'none';
+  document.getElementById('pr-ctrl').style.display  = v==='proj' ? 'flex' : 'none';
+  document.getElementById('dnx-ctrl').style.display = v==='dnx'  ? 'flex' : 'none';
+  document.getElementById('qv-ctrl').style.display  = v==='qv'   ? 'flex' : 'none';
+  var showTbl = (v==='ws' || v==='proj');
+  document.getElementById('tbl').style.display       = showTbl   ? 'block' : 'none';
+  document.getElementById('dnx-panel').style.display = v==='dnx' ? 'block' : 'none';
+  document.getElementById('qv-panel').style.display  = v==='qv'  ? 'block' : 'none';
+  if (v==='ws') renderWS();
+  else if (v==='proj') renderProj();
+  else if (v==='dnx') renderDNxLB();
+  else renderQV();
+}
+
+// ── Workspace table ────────────────────────────────────────────────────────
+function setSort(k) {
+  wsD = wsK===k ? wsD*-1 : (['name','project','storageGroup','wsType','source'].indexOf(k)>=0?1:-1);
+  wsK = k; renderWS();
+}
+function renderWS() {
+  var q  = (document.getElementById('ws-q').value||'').toLowerCase();
+  var ms = Object.keys(files).length > 1;
+  var d  = allRows.filter(function(r){
+    return r.name.toLowerCase().indexOf(q)>=0 || r.project.toLowerCase().indexOf(q)>=0
+        || r.storageGroup.toLowerCase().indexOf(q)>=0 || r.wsType.toLowerCase().indexOf(q)>=0;
+  });
+  d.sort(function(a,b){var av=a[wsK],bv=b[wsK];return typeof av==='string'?wsD*av.localeCompare(bv):wsD*(av-bv);});
+  if (!d.length){document.getElementById('tbl').innerHTML='<div class="nores">No workspaces match.</div>';return;}
+  var th='<thead><tr>'
+    +'<th onclick="setSort(\'project\')">Project</th>'
+    +'<th onclick="setSort(\'name\')">Workspace</th>'
+    +'<th onclick="setSort(\'wsType\')">Type</th>'
+    +(ms?'<th onclick="setSort(\'source\')">Source</th>':'')
+    +'<th onclick="setSort(\'used\')">Used (GB)</th>'
+    +'<th onclick="setSort(\'pct\')">Usage</th>'
+    +'<th onclick="setSort(\'storageGroup\')">Storage Group</th>'
+    +'</tr></thead>';
+  var tb='<tbody>'+d.map(function(r){
+    var p=Math.min(100,r.pct),c=p>90?'var(--red)':p>75?'var(--amber)':'var(--green)',sn=r.source.replace(/\.csv$/i,'');
+    return '<tr>'
+      +'<td><span class="pb">'+esc(r.project)+'</span></td>'
+      +'<td style="font-weight:500;color:var(--white)">'+esc(r.name)+'</td>'
+      +'<td><span class="tb">'+esc(r.wsType)+'</span></td>'
+      +(ms?'<td><span class="nb">'+esc(sn)+'</span></td>':'')
+      +'<td style="color:'+c+';font-variant-numeric:tabular-nums;font-weight:500">'+fmt(r.used)+'</td>'
+      +'<td><div class="bw"><div class="bt"><div class="bf" style="width:'+p+'%;background:'+c+'"></div></div>'
+      +'<span class="bp">'+p.toFixed(1)+'%</span></div></td>'
+      +'<td style="color:var(--muted);font-size:12px">'+esc(r.storageGroup)+'</td>'
+      +'</tr>';
+  }).join('')+'</tbody>';
+  document.getElementById('tbl').innerHTML='<table>'+th+tb+'</table>';
+}
+
+// ── Project totals ─────────────────────────────────────────────────────────
+function setProjSort(k) {
+  prD=prK===k?prD*-1:(k==='project'?1:-1); prK=k;
+  document.querySelectorAll('#pr-ctrl .srt').forEach(function(b){b.classList.remove('active');});
+  if(k==='totalUsed'){var e=document.getElementById('pr-su');if(e)e.classList.add('active');}
+  if(k==='project'){var e2=document.getElementById('pr-sn');if(e2)e2.classList.add('active');}
+  renderProj();
+}
+function renderProj() {
+  var q  = (document.getElementById('pr-q').value||'').toLowerCase();
+  var vT = activeTypes.size>0 ? Array.from(activeTypes) : allTypes;
+  var map={};
+  allRows.forEach(function(r){
+    if(!map[r.project]){map[r.project]={project:r.project,byType:{},totalUsed:0};allTypes.forEach(function(t){map[r.project].byType[t]=0;});}
+    map[r.project].byType[r.wsType]=(map[r.project].byType[r.wsType]||0)+r.used;
+    if(vT.indexOf(r.wsType)>=0)map[r.project].totalUsed+=r.used;
+  });
+  var data=Object.values(map).filter(function(p){return p.project.toLowerCase().indexOf(q)>=0;});
+  if(prK.indexOf('type_')===0){var t=prK.slice(5);data.sort(function(a,b){return prD*((b.byType[t]||0)-(a.byType[t]||0));});}
+  else data.sort(function(a,b){var av=a[prK],bv=b[prK];return typeof av==='string'?prD*av.localeCompare(bv):prD*(av-bv);});
+  if(!data.length){document.getElementById('tbl').innerHTML='<div class="nores">No projects match.</div>';return;}
+  var mx=1;data.forEach(function(p){var s=allTypes.reduce(function(a,t){return a+(p.byType[t]||0);},0);if(s>mx)mx=s;});
+  var th='<thead><tr><th onclick="setProjSort(\'project\')">Project</th>';
+  vT.forEach(function(t){var c=COLORS[allTypes.indexOf(t)%COLORS.length];th+='<th onclick="setProjSort(\'type_'+t+'\')"><span class="thdot" style="background:'+c+'"></span>'+t+'</th>';});
+  th+='<th onclick="setProjSort(\'totalUsed\')">Total Used</th><th>Breakdown</th></tr></thead>';
+  var tb='<tbody>'+data.map(function(p){
+    var tc=vT.map(function(t){var v=p.byType[t]||0,c=COLORS[allTypes.indexOf(t)%COLORS.length];
+      return v>0?'<td style="color:'+c+';font-variant-numeric:tabular-nums;font-weight:500">'+fmt(v)+'</td>':'<td style="color:var(--muted2)">&mdash;</td>';}).join('');
+    var sg=allTypes.map(function(t,i){var v=p.byType[t]||0;if(!v)return'';
+      var c=COLORS[i%COLORS.length],w=(v/mx*100).toFixed(2),dim=vT.indexOf(t)>=0?'':'opacity:.12;';
+      return'<div class="seg" title="'+t+': '+fmt(v)+'" style="width:'+w+'%;background:'+c+';'+dim+'"></div>';}).join('');
+    var tC=p.totalUsed>50000?'var(--red)':p.totalUsed>10000?'var(--amber)':'var(--text)';
+    return'<tr><td><span class="pb">'+esc(p.project)+'</span></td>'+tc
+      +'<td style="color:'+tC+';font-weight:600;font-variant-numeric:tabular-nums">'+fmt(p.totalUsed)+'</td>'
+      +'<td><div class="sbar">'+sg+'</div></td></tr>';
+  }).join('')+'</tbody>';
+  document.getElementById('tbl').innerHTML='<table>'+th+tb+'</table>';
+}
+
+// ── DNxLB Hours ─────────────────────────────────────────────────────────────
+function renderDNxLB() {
+  var projs={};
+  allRows.forEach(function(r){
+    if(!projs[r.project])projs[r.project]={off:[],off2:[],off_2:[]};
+    if(r.wsType==='OFF')  projs[r.project].off.push(r);
+    if(r.wsType==='OFF2') projs[r.project].off2.push(r);
+    if(r.wsType==='OFF_2')projs[r.project].off_2.push(r);
+  });
+  var entries=Object.entries(projs).filter(function(e){return e[1].off.length>0||e[1].off2.length>0||e[1].off_2.length>0;}).sort(function(a,b){return a[0].localeCompare(b[0]);});
+  if(!entries.length){document.getElementById('dnx-panel').innerHTML='<div class="dnx-empty">No projects with OFF, OFF2 or OFF_2 workspace types found.</div>';return;}
+  var cards=entries.map(function(entry){
+    var name=entry[0],p=entry[1];
+    var offT =p.off.reduce(function(s,r){return s+r.used;},0);
+    var off2T=p.off2.reduce(function(s,r){return s+r.used;},0);
+    var off_2T=p.off_2.reduce(function(s,r){return s+r.used;},0);
+    var comb=offT+off2T+off_2T,hrs=comb/DNX_GB;
+    var offRows =p.off.map(function(r){return'<div class="dnx-row"><span class="dnx-rl">'+esc(r.name)+'</span><span class="dnx-rv">'+fmt(r.used)+'</span></div>';}).join('');
+    var off2Rows=p.off2.map(function(r){return'<div class="dnx-row"><span class="dnx-rl">'+esc(r.name)+'</span><span class="dnx-rv">'+fmt(r.used)+'</span></div>';}).join('');
+    var off_2Rows=p.off_2.map(function(r){return'<div class="dnx-row"><span class="dnx-rl">'+esc(r.name)+'</span><span class="dnx-rv">'+fmt(r.used)+'</span></div>';}).join('');
+    var offSec =offT >0?'<div class="dnx-row" style="margin-bottom:4px"><span class="dnx-rl" style="font-weight:500;color:var(--text)">OFF</span><span class="dnx-rv" style="color:var(--muted)">'+fmt(offT)+'</span></div>'+offRows:'';
+    var off2Sec=off2T>0?'<div class="dnx-row" style="margin-bottom:4px;margin-top:'+(offT>0?'8px':'0')+'"><span class="dnx-rl" style="font-weight:500;color:var(--text)">OFF2</span><span class="dnx-rv" style="color:var(--muted)">'+fmt(off2T)+'</span></div>'+off2Rows:'';
+    var off_2Sec=off_2T>0?'<div class="dnx-row" style="margin-bottom:4px;margin-top:'+((offT>0||off2T>0)?'8px':'0')+'"><span class="dnx-rl" style="font-weight:500;color:var(--text)">OFF_2</span><span class="dnx-rv" style="color:var(--muted)">'+fmt(off_2T)+'</span></div>'+off_2Rows:'';
+    return'<div class="dnx-card">'
+      +'<div class="dnx-cname">'+esc(name)+'</div>'
+      +'<div>'+offSec+off2Sec+off_2Sec+'</div>'
+      +'<hr class="dnx-div">'
+      +'<div class="dnx-tot"><span class="dnx-tl">Combined OFF / OFF2 / OFF_2 storage</span><span class="dnx-tv">'+fmt(comb)+'</span></div>'
+      +'<div class="dnx-hrs"><span class="dnx-hl">Est. DNxLB Proxy hours</span>'
+      +'<div><span class="dnx-hv">'+hrs.toFixed(1)+'</span><span class="dnx-hu">hrs</span></div></div>'
+      +'</div>';
+  }).join('');
+  document.getElementById('dnx-panel').innerHTML='<div class="dnx-wrap">'
+    +'<div class="dnx-info">Estimated DNxLB Proxy hours based on OFF, OFF2 &amp; OFF_2 storage. <strong>1 hr = '+DNX_GB+' GB</strong></div>'
+    +'<div class="dnx-grid">'+cards+'</div></div>';
+}
+
+// ── Share View ──────────────────────────────────────────────────────────────
+// Builds a fully pre-rendered static HTML file — no JS needed to view data.
+// All three tabs are rendered into the HTML at build time.
+// JS only handles tab switching (works when opened locally; degrades gracefully on Drive).
+function shareView() {
+  if (!allRows.length) return;
+  var btn = document.querySelector('.btn-share');
+  btn.textContent = 'Building\u2026';
+
+  var exportedAt  = new Date().toLocaleString('en-GB');
+  var sourceNames = Object.keys(files).join(', ');
+  var output = buildShareHTML(allRows, allTypes, COLORS, exportedAt, sourceNames, allocations);
+
+  var blob = new Blob([output], { type: 'text/html;charset=utf-8' });
+  var url  = URL.createObjectURL(blob);
+  var a    = document.createElement('a');
+  a.href     = url;
+  a.download = 'racoon-nexis-' + new Date().toISOString().slice(0,10) + '.html';
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  setTimeout(function(){ URL.revokeObjectURL(url); }, 10000);
+  btn.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg> Share View';
+}
+
+// Pre-renders all content at build time — static HTML, no JS needed for data display
+function buildShareHTML(rows, types, colors, exportedAt, sourceNames, allocMap) {
+  var DNX = 20;
+  var allocMap = allocMap || {};
+
+  // ── helpers ────────────────────────────────────────────────────────────────
+  function f(g){ return g >= 1000 ? (g/1000).toFixed(2)+' TB' : g.toFixed(0)+' GB'; }
+  function e(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+  // ── summary bar ────────────────────────────────────────────────────────────
+  var tCap = rows.reduce(function(s,r){return s+r.capacity;},0);
+  var tUsd = rows.reduce(function(s,r){return s+r.used;},0);
+  var projs = Array.from(new Set(rows.map(function(r){return r.project;}))).length;
+  var srcs  = Array.from(new Set(rows.map(function(r){return r.source;})));
+  var pct   = tCap > 0 ? (tUsd/tCap)*100 : 0;
+  var pctColor = pct>90?'var(--red)':pct>75?'var(--amber)':'var(--green)';
+  var pctLabel = pct>90?'critical':pct>75?'high':'healthy';
+
+  var sumbarHTML = [
+    {l:'NEXIS Systems', v:srcs.length,       s:'sources'},
+    {l:'Workspaces',    v:rows.length,        s:'total'},
+    {l:'Projects',      v:projs,              s:'unique'},
+    {l:'Total Used',    v:f(tUsd),            s:'of '+f(tCap)},
+    {l:'Utilisation',   v:pct.toFixed(1)+'%', s:pctLabel, c:pctColor}
+  ].map(function(c){
+    return '<div class="sc"><div class="sl">'+c.l+'</div>'
+      +'<div class="sv"'+(c.c?' style="color:'+c.c+'"':'')+'>'+c.v+'</div>'
+      +'<div class="ss">'+c.s+'</div></div>';
+  }).join('');
+
+  var srcPillsHTML = '<span class="spl">Sources ('+srcs.length+')</span>'
+    + srcs.map(function(s){return'<span class="spi">'+e(s)+'</span>';}).join('');
+
+  // ── tab 1: workspaces table ────────────────────────────────────────────────
+  var ms = srcs.length > 1;
+  var sorted = rows.slice().sort(function(a,b){
+    var pc = a.project.localeCompare(b.project);
+    return pc !== 0 ? pc : a.name.localeCompare(b.name);
+  });
+  var wsRows = sorted.map(function(r){
+    var p = Math.min(100, r.pct);
+    var c = p>90?'var(--red)':p>75?'var(--amber)':'var(--green)';
+    var sn = r.source.replace(/\.csv$/i,'');
+    return '<tr>'
+      +'<td><span class="pb">'+e(r.project)+'</span></td>'
+      +'<td style="font-weight:500;color:var(--white)">'+e(r.name)+'</td>'
+      +'<td><span class="tb3">'+e(r.wsType)+'</span></td>'
+      +(ms?'<td><span class="nb">'+e(sn)+'</span></td>':'')
+      +'<td style="color:'+c+';font-variant-numeric:tabular-nums;font-weight:500">'+f(r.used)+'</td>'
+      +'<td><div class="bw"><div class="bt"><div class="bf" style="width:'+p.toFixed(1)+'%;background:'+c+'"></div></div>'
+      +'<span class="bp">'+p.toFixed(1)+'%</span></div></td>'
+      +'<td style="color:var(--muted);font-size:12px">'+e(r.storageGroup)+'</td>'
+      +'</tr>';
+  }).join('');
+  var wsHTML = '<table>'
+    +'<thead><tr><th>Project</th><th>Workspace</th><th>Type</th>'
+    +(ms?'<th>Source</th>':'')
+    +'<th>Used (GB)</th><th>Usage</th><th>Storage Group</th></tr></thead>'
+    +'<tbody>'+wsRows+'</tbody></table>';
+
+  // ── tab 2: project totals ──────────────────────────────────────────────────
+  var map = {};
+  rows.forEach(function(r){
+    if(!map[r.project]){map[r.project]={project:r.project,byType:{},total:0};types.forEach(function(t){map[r.project].byType[t]=0;});}
+    map[r.project].byType[r.wsType]=(map[r.project].byType[r.wsType]||0)+r.used;
+    map[r.project].total+=r.used;
+  });
+  var projData = Object.values(map).sort(function(a,b){return a.project.localeCompare(b.project);});
+  var mx = projData.reduce(function(m,p){return Math.max(m,types.reduce(function(s,t){return s+(p.byType[t]||0);},0));},1);
+
+  var projHeader = '<tr><th>Project</th>'
+    + types.map(function(t,i){
+        return '<th><span class="thdot" style="background:'+colors[i%colors.length]+'"></span>'+e(t)+'</th>';
+      }).join('')
+    + '<th>Total Used</th><th>Breakdown</th></tr>';
+
+  var projRows = projData.map(function(p){
+    var tc = types.map(function(t){
+      var v=p.byType[t]||0, c=colors[types.indexOf(t)%colors.length];
+      return v>0?'<td style="color:'+c+';font-variant-numeric:tabular-nums;font-weight:500">'+f(v)+'</td>'
+                :'<td style="color:var(--muted2)">&mdash;</td>';
+    }).join('');
+    var seg = types.map(function(t,i){
+      var v=p.byType[t]||0; if(!v)return'';
+      return '<div class="seg" style="width:'+(v/mx*100).toFixed(2)+'%;background:'+colors[i%colors.length]+'"></div>';
+    }).join('');
+    var tC = p.total>50000?'var(--red)':p.total>10000?'var(--amber)':'var(--text)';
+    return '<tr><td><span class="pb">'+e(p.project)+'</span></td>'+tc
+      +'<td style="color:'+tC+';font-weight:600;font-variant-numeric:tabular-nums">'+f(p.total)+'</td>'
+      +'<td><div class="sbar">'+seg+'</div></td></tr>';
+  }).join('');
+  var projHTML = '<table><thead>'+projHeader+'</thead><tbody>'+projRows+'</tbody></table>';
+
+  // ── tab 3: DNxLB hours ────────────────────────────────────────────────────
+  var pmap = {};
+  rows.forEach(function(r){
+    if(!pmap[r.project])pmap[r.project]={off:[],off2:[],off_2:[]};
+    if(r.wsType==='OFF')  pmap[r.project].off.push(r);
+    if(r.wsType==='OFF2') pmap[r.project].off2.push(r);
+    if(r.wsType==='OFF_2')pmap[r.project].off_2.push(r);
+  });
+  var dnxEntries = Object.entries(pmap)
+    .filter(function(e){return e[1].off.length||e[1].off2.length||e[1].off_2.length;})
+    .sort(function(a,b){return a[0].localeCompare(b[0]);});
+
+  var dnxHTML;
+  if(!dnxEntries.length){
+    dnxHTML = '<div class="dnx-empty">No projects with OFF, OFF2 or OFF_2 workspace types found.</div>';
+  } else {
+    var cards = dnxEntries.map(function(en){
+      var nm=en[0],p=en[1];
+      var oT  =p.off.reduce(function(s,r){return s+r.used;},0);
+      var o2T =p.off2.reduce(function(s,r){return s+r.used;},0);
+      var o_2T=p.off_2.reduce(function(s,r){return s+r.used;},0);
+      var comb=oT+o2T+o_2T, hrs=comb/DNX;
+      var oR  =p.off.map(function(r){return'<div class="dnx-row"><span class="dnx-rl">'+e(r.name)+'</span><span class="dnx-rv">'+f(r.used)+'</span></div>';}).join('');
+      var o2R =p.off2.map(function(r){return'<div class="dnx-row"><span class="dnx-rl">'+e(r.name)+'</span><span class="dnx-rv">'+f(r.used)+'</span></div>';}).join('');
+      var o_2R=p.off_2.map(function(r){return'<div class="dnx-row"><span class="dnx-rl">'+e(r.name)+'</span><span class="dnx-rv">'+f(r.used)+'</span></div>';}).join('');
+      var oS  =oT  >0?'<div class="dnx-row" style="margin-bottom:4px"><span class="dnx-rl" style="font-weight:500;color:var(--text)">OFF</span><span class="dnx-rv" style="color:var(--muted)">'+f(oT)+'</span></div>'+oR:'';
+      var o2S =o2T >0?'<div class="dnx-row" style="margin-bottom:4px;margin-top:'+(oT>0?'8px':'0')+'"><span class="dnx-rl" style="font-weight:500;color:var(--text)">OFF2</span><span class="dnx-rv" style="color:var(--muted)">'+f(o2T)+'</span></div>'+o2R:'';
+      var o_2S=o_2T>0?'<div class="dnx-row" style="margin-bottom:4px;margin-top:'+((oT>0||o2T>0)?'8px':'0')+'"><span class="dnx-rl" style="font-weight:500;color:var(--text)">OFF_2</span><span class="dnx-rv" style="color:var(--muted)">'+f(o_2T)+'</span></div>'+o_2R:'';
+      return '<div class="dnx-card">'
+        +'<div class="dnx-cname">'+e(nm)+'</div>'
+        +'<div>'+oS+o2S+o_2S+'</div>'
+        +'<hr class="dnx-div">'
+        +'<div class="dnx-tot"><span class="dnx-tl">Combined OFF / OFF2 / OFF_2 storage</span><span class="dnx-tv">'+f(comb)+'</span></div>'
+        +'<div class="dnx-hrs"><span class="dnx-hl">Est. DNxLB Proxy hours</span>'
+        +'<div><span class="dnx-hv">'+hrs.toFixed(1)+'</span><span class="dnx-hu">hrs</span></div></div>'
+        +'</div>';
+    }).join('');
+    dnxHTML = '<div class="dnx-wrap"><div class="dnx-info">Estimated DNxLB Proxy hours based on OFF, OFF2 &amp; OFF_2 storage. <strong>1 hr = '+DNX+' GB</strong></div>'
+      +'<div class="dnx-grid">'+cards+'</div></div>';
+  }
+
+  // ── assemble HTML ──────────────────────────────────────────────────────────
+  var css = [
+    "@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');",
+    ':root{--bg:#0b0b12;--surface:#13131f;--card:#0e0e1a;--border:#1e1e30;--border2:#2a2a42;--text:#e8e8f0;--muted:#6b6b8e;--muted2:#3a3a55;--accent:#7c3aed;--accent-lt:#a78bfa;--red:#f87171;--amber:#fbbf24;--green:#34d399;--white:#fff;--grad:linear-gradient(135deg,#7c3aed 0%,#6d28d9 100%);}',
+    '*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}',
+    'body{background:var(--bg);color:var(--text);font-family:Inter,system-ui,sans-serif;font-size:14px;line-height:1.5;min-height:100vh;}',
+    'body::before{content:"";position:fixed;inset:0;background-image:radial-gradient(circle,rgba(124,58,237,.08) 1px,transparent 1px);background-size:28px 28px;pointer-events:none;z-index:0;}',
+    'body>*{position:relative;z-index:1;}',
+    'header{display:flex;align-items:center;justify-content:space-between;padding:0 40px;height:64px;border-bottom:1px solid var(--border);background:rgba(11,11,18,.95);position:sticky;top:0;z-index:9;}',
+    '.logo{height:28px;filter:brightness(0) invert(1);}',
+    '.badge{font-size:11px;font-weight:600;color:var(--accent-lt);background:rgba(124,58,237,.1);border:1px solid rgba(124,58,237,.3);padding:4px 12px;border-radius:20px;}',
+    '.fbar{display:flex;align-items:center;justify-content:space-between;padding:10px 40px;background:rgba(124,58,237,.06);border-bottom:1px solid rgba(124,58,237,.15);}',
+    '.fdot{width:8px;height:8px;border-radius:50%;background:var(--accent-lt);box-shadow:0 0 0 3px rgba(124,58,237,.25);margin-right:10px;display:inline-block;vertical-align:middle;}',
+    '.flbl{font-size:11px;font-weight:600;color:var(--accent-lt);text-transform:uppercase;letter-spacing:.1em;margin-right:10px;}',
+    '.fdt{font-size:15px;font-weight:500;color:var(--white);}.frt{font-size:11px;color:var(--muted);}',
+    '.sb{display:grid;grid-template-columns:repeat(5,1fr);border-bottom:1px solid var(--border);background:var(--surface);}',
+    '.sc{padding:20px 28px;border-right:1px solid var(--border);}.sc:last-child{border-right:none;}',
+    '.sl{font-size:10px;font-weight:600;color:var(--muted);letter-spacing:.1em;text-transform:uppercase;margin-bottom:10px;}',
+    '.sv{font-size:26px;font-weight:700;color:var(--white);letter-spacing:-.02em;}.ss{font-size:11px;color:var(--muted);margin-top:4px;}',
+    '.sp{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:10px 40px;border-bottom:1px solid var(--border);background:var(--card);}',
+    '.spl{font-size:10px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.08em;margin-right:4px;}',
+    '.spi{display:inline-flex;align-items:center;background:var(--surface);border:1px solid var(--border2);border-radius:20px;padding:3px 12px;font-size:11px;color:var(--text);}',
+    '.toolbar{display:flex;align-items:center;gap:10px;padding:12px 40px;border-bottom:1px solid var(--border);background:var(--surface);flex-wrap:wrap;}',
+    '.tab-grp{display:flex;gap:2px;background:var(--card);border-radius:10px;padding:4px;}',
+    '.tab{padding:6px 18px;font-size:13px;font-weight:500;border-radius:7px;cursor:pointer;border:none;background:transparent;color:var(--muted);font-family:inherit;transition:all .2s;}',
+    '.tab.active{background:var(--grad);color:#fff;box-shadow:0 2px 12px rgba(124,58,237,.35);}',
+    '.tsep{flex:1;}',
+    '.ctrl{display:none;align-items:center;gap:8px;flex-wrap:wrap;}',
+    '.ctrl.active{display:flex;}',
+    '.srch{background:var(--card);border:1px solid var(--border2);color:var(--text);font-size:13px;padding:7px 12px;border-radius:8px;width:200px;outline:none;font-family:inherit;transition:border-color .2s;}',
+    '.srch:focus{border-color:var(--accent);}',
+    '.srch::placeholder{color:var(--muted2);}',
+    '.srt{padding:7px 12px;font-size:12px;font-weight:500;border:1px solid var(--border2);background:transparent;color:var(--muted);border-radius:8px;cursor:pointer;font-family:inherit;transition:all .15s;}',
+    '.srt:hover,.srt.active{border-color:var(--accent);color:var(--accent-lt);background:rgba(124,58,237,.08);}',
+    '.panel{display:none;padding:0 40px 48px;background:var(--bg);}',
+    '.panel.active{display:block;}',
+    '.twrap{overflow-x:auto;overflow-y:auto;max-height:calc(100vh - 200px);}',
+    'table{width:100%;border-collapse:collapse;}',
+    'thead th{padding:12px 16px;text-align:left;font-size:10px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);border-bottom:1px solid var(--border);white-space:nowrap;cursor:pointer;user-select:none;background:var(--surface);position:sticky;top:0;z-index:2;}',
+    'thead th:hover{color:var(--accent-lt);}',
+    'thead th.sort-asc::after{content:" ↑";}thead th.sort-desc::after{content:" ↓";}',
+    'tbody tr{border-bottom:1px solid var(--border);transition:background .1s;}',
+    'tbody tr:hover{background:var(--surface);}tbody tr:last-child{border-bottom:none;}',
+    'tbody tr.hidden{display:none;}',
+    'td{padding:13px 16px;font-size:13px;white-space:nowrap;}',
+    '.pb{display:inline-block;padding:3px 10px;font-size:11px;font-weight:500;border-radius:20px;background:rgba(124,58,237,.12);color:var(--accent-lt);}',
+    '.tb3{display:inline-block;padding:3px 10px;font-size:11px;font-weight:500;border-radius:20px;background:rgba(255,255,255,.04);color:var(--muted);}',
+    '.nb{display:inline-block;padding:3px 10px;font-size:11px;border-radius:20px;background:rgba(124,58,237,.1);color:var(--accent-lt);max-width:140px;overflow:hidden;text-overflow:ellipsis;}',
+    '.bw{display:flex;align-items:center;gap:10px;min-width:140px;}.bt{flex:1;height:4px;background:var(--border);border-radius:4px;overflow:hidden;}.bf{height:100%;border-radius:4px;}.bp{font-size:11px;color:var(--muted);min-width:38px;text-align:right;font-variant-numeric:tabular-nums;}',
+    '.sbar{display:flex;height:6px;gap:1px;overflow:hidden;border-radius:4px;min-width:140px;}.seg{height:100%;flex-shrink:0;}',
+    '.thdot{display:inline-block;width:6px;height:6px;border-radius:50%;margin-right:6px;vertical-align:middle;}',
+    '.nores{text-align:center;padding:60px 0;color:var(--muted);font-size:14px;}',
+    '.dnx-wrap{padding:32px 0;}.dnx-info{font-size:13px;color:var(--muted);margin-bottom:24px;line-height:1.6;}',
+    '.dnx-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px;}',
+    '.dnx-card{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:20px 24px;position:relative;overflow:hidden;transition:border-color .2s;}',
+    '.dnx-card.hidden{display:none;}',
+    '.dnx-card:hover{border-color:rgba(124,58,237,.4);}',
+    '.dnx-card::before{content:"";position:absolute;top:0;left:0;right:0;height:3px;background:var(--grad);}',
+    '.dnx-cname{font-size:14px;font-weight:600;color:var(--white);margin-bottom:16px;}',
+    '.dnx-row{display:flex;justify-content:space-between;align-items:center;font-size:12px;margin-bottom:4px;}.dnx-rl{color:var(--muted);}.dnx-rv{font-family:monospace;color:var(--text);}',
+    '.dnx-div{border:none;border-top:1px solid var(--border);margin:12px 0;}',
+    '.dnx-tot{display:flex;justify-content:space-between;align-items:baseline;}.dnx-tl{font-size:12px;color:var(--muted);}.dnx-tv{font-size:13px;font-weight:600;color:var(--text);}',
+    '.dnx-hrs{display:flex;justify-content:space-between;align-items:baseline;margin-top:10px;}',
+    '.dnx-hl{font-size:10px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;}',
+    '.dnx-hv{font-size:32px;font-weight:700;color:var(--accent-lt);letter-spacing:-.02em;}.dnx-hu{font-size:13px;color:var(--muted);margin-left:4px;}',
+    '.dnx-empty{text-align:center;padding:80px 0;color:var(--muted);font-size:14px;}',
+    'footer{padding:20px 40px;border-top:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;font-size:11px;color:var(--muted);background:var(--surface);}',
+    '.flogo{height:16px;opacity:.2;filter:brightness(0) invert(1);}',
+    /* QV tab */
+    '.qv-wrap{padding:32px 0;}.qv-info{font-size:13px;color:var(--muted);margin-bottom:24px;line-height:1.7;}',
+    '.qv-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px;}',
+    '.qv-card{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:20px 24px;position:relative;overflow:hidden;transition:border-color .2s;}',
+    '.qv-card.hidden{display:none;}',
+    '.qv-card:hover{border-color:rgba(124,58,237,.4);}',
+    '.qv-card::before{content:"";position:absolute;top:0;left:0;right:0;height:3px;background:var(--grad);}',
+    '.qv-card.qv-warn::before{background:linear-gradient(135deg,#f97316,#ea580c);}.qv-card.qv-crit::before{background:linear-gradient(135deg,#ef4444,#dc2626);}',
+    '.qv-card.qv-warn{border-color:rgba(249,115,22,.35);}.qv-card.qv-crit{border-color:rgba(239,68,68,.45);}',
+    '.qv-name{font-size:14px;font-weight:600;color:var(--white);margin-bottom:14px;}',
+    '.qv-row{display:flex;justify-content:space-between;align-items:center;font-size:12px;margin-bottom:4px;}.qv-rl{color:var(--muted);}.qv-rv{font-family:monospace;color:var(--text);}',
+    '.qv-divider{border:none;border-top:1px solid var(--border);margin:12px 0;}',
+    '.qv-totrow{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:14px;}.qv-totl{font-size:12px;color:var(--muted);}.qv-totv{font-size:16px;font-weight:700;color:var(--text);}',
+    '.qv-bar-labels{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px;}.qv-bar-lbl{font-size:10px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;}.qv-bar-quota{font-size:12px;font-weight:600;color:var(--muted);}',
+    '.qv-bar-wrap{height:8px;background:var(--border);border-radius:4px;overflow:hidden;margin-bottom:6px;}.qv-bar{height:100%;border-radius:4px;}',
+    '.qv-pct{font-size:13px;font-weight:700;text-align:right;}',
+    '.qv-noalloc{font-size:11px;color:var(--muted2);font-style:italic;margin-top:8px;}',
+    '.qv-empty{text-align:center;padding:80px 0;color:var(--muted);font-size:14px;}'
+  ].join('');
+
+  // ── Interactive JS: tab switching + sort + filter ─────────────────────────
+  var tabJS = [
+    '(function(){',
+
+    // Tab switching + ctrl bar toggling
+    'function showTab(v){',
+    '  document.querySelectorAll(".panel").forEach(function(p){p.classList.remove("active");});',
+    '  document.querySelectorAll(".tab").forEach(function(t){t.classList.remove("active");});',
+    '  document.querySelectorAll(".ctrl").forEach(function(c){c.classList.remove("active");});',
+    '  document.getElementById("panel-"+v).classList.add("active");',
+    '  document.getElementById("tab-"+v).classList.add("active");',
+    '  var c=document.getElementById("ctrl-"+v); if(c) c.classList.add("active");',
+    '}',
+    'window.showTab=showTab;',
+
+    // ── Workspace sort/filter ──────────────────────────────────────────────
+    'var wsSort="project",wsSortDir=1;',
+
+    'window.wsFilter=function(){',
+    '  var q=document.getElementById("ws-search").value.toLowerCase();',
+    '  document.querySelectorAll("#tbl-ws tbody tr").forEach(function(r){',
+    '    var txt=r.getAttribute("data-search")||"";',
+    '    r.classList.toggle("hidden", q.length>0 && txt.indexOf(q)<0);',
+    '  });',
+    '  wsCheckEmpty("tbl-ws");',
+    '};',
+
+    'window.wsSortBy=function(col){',
+    '  if(wsSort===col) wsSortDir*=-1; else{wsSort=col;wsSortDir=1;}',
+    '  var ths=document.querySelectorAll("#tbl-ws thead th");',
+    '  ths.forEach(function(th){th.classList.remove("sort-asc","sort-desc");if(th.getAttribute("data-col")===col){th.classList.add(wsSortDir===1?"sort-asc":"sort-desc");}});',
+    '  var tb=document.querySelector("#tbl-ws tbody");',
+    '  var rows=Array.from(tb.querySelectorAll("tr"));',
+    '  rows.sort(function(a,b){',
+    '    var av=a.getAttribute("data-"+col)||"", bv=b.getAttribute("data-"+col)||"";',
+    '    var an=parseFloat(av), bn=parseFloat(bv);',
+    '    if(!isNaN(an)&&!isNaN(bn)) return wsSortDir*(an-bn);',
+    '    return wsSortDir*av.localeCompare(bv);',
+    '  });',
+    '  rows.forEach(function(r){tb.appendChild(r);});',
+    '};',
+
+    // ── Project totals sort/filter ─────────────────────────────────────────
+    'var prSort="project",prSortDir=1;',
+
+    'window.prFilter=function(){',
+    '  var q=document.getElementById("pr-search").value.toLowerCase();',
+    '  document.querySelectorAll("#tbl-pr tbody tr").forEach(function(r){',
+    '    var txt=(r.getAttribute("data-project")||"").toLowerCase();',
+    '    r.classList.toggle("hidden", q.length>0 && txt.indexOf(q)<0);',
+    '  });',
+    '  wsCheckEmpty("tbl-pr");',
+    '};',
+
+    'window.prSortBy=function(col){',
+    '  if(prSort===col) prSortDir*=-1; else{prSort=col;prSortDir=1;}',
+    '  var ths=document.querySelectorAll("#tbl-pr thead th");',
+    '  ths.forEach(function(th){th.classList.remove("sort-asc","sort-desc");if(th.getAttribute("data-col")===col){th.classList.add(prSortDir===1?"sort-asc":"sort-desc");}});',
+    '  var tb=document.querySelector("#tbl-pr tbody");',
+    '  var rows=Array.from(tb.querySelectorAll("tr"));',
+    '  rows.sort(function(a,b){',
+    '    var av=a.getAttribute("data-"+col)||"", bv=b.getAttribute("data-"+col)||"";',
+    '    var an=parseFloat(av), bn=parseFloat(bv);',
+    '    if(!isNaN(an)&&!isNaN(bn)) return prSortDir*(an-bn);',
+    '    return prSortDir*av.localeCompare(bv);',
+    '  });',
+    '  rows.forEach(function(r){tb.appendChild(r);});',
+    '};',
+
+    // ── DNxLB filter + sort ────────────────────────────────────────────────
+    'var dnxSort="project",dnxSortDir=1;',
+
+    'window.dnxFilter=function(){',
+    '  var q=document.getElementById("dnx-search").value.toLowerCase();',
+    '  document.querySelectorAll("#dnx-grid .dnx-card").forEach(function(c){',
+    '    var txt=(c.getAttribute("data-project")||"").toLowerCase();',
+    '    c.classList.toggle("hidden", q.length>0 && txt.indexOf(q)<0);',
+    '  });',
+    '};',
+
+    'window.dnxSortBy=function(col){',
+    '  if(dnxSort===col) dnxSortDir*=-1; else{dnxSort=col;dnxSortDir=1;}',
+    '  var grid=document.getElementById("dnx-grid");',
+    '  var cards=Array.from(grid.querySelectorAll(".dnx-card"));',
+    '  cards.sort(function(a,b){',
+    '    var av=a.getAttribute("data-"+col)||"", bv=b.getAttribute("data-"+col)||"";',
+    '    var an=parseFloat(av), bn=parseFloat(bv);',
+    '    if(!isNaN(an)&&!isNaN(bn)) return dnxSortDir*(an-bn);',
+    '    return dnxSortDir*av.localeCompare(bv);',
+    '  });',
+    '  cards.forEach(function(c){grid.appendChild(c);});',
+    '  var btns=document.querySelectorAll("#ctrl-dnx .srt");',
+    '  btns.forEach(function(b){b.classList.toggle("active",b.getAttribute("data-sort")===col);});',
+    '};',
+
+    // ── helper: show "no results" row ─────────────────────────────────────
+    'function wsCheckEmpty(tblId){',
+    '  var tbl=document.getElementById(tblId);',
+    '  var existing=tbl.querySelector(".nores-row");',
+    '  var visible=Array.from(tbl.querySelectorAll("tbody tr:not(.hidden):not(.nores-row)")).length;',
+    '  if(visible===0){',
+    '    if(!existing){var tr=document.createElement("tr");tr.className="nores-row";tr.innerHTML="<td colspan=\\"99\\" class=\\"nores\\">No results match.</td>";tbl.querySelector("tbody").appendChild(tr);}',
+    '  } else { if(existing) existing.remove(); }',
+    '}',
+
+    // ── QV filter ─────────────────────────────────────────────────────────
+    'window.qvFilter=function(){',
+    '  var q=document.getElementById("qv-search").value.toLowerCase();',
+    '  document.querySelectorAll("#qv-grid .qv-card").forEach(function(c){',
+    '    var txt=(c.getAttribute("data-project")||"").toLowerCase();',
+    '    c.classList.toggle("hidden", q.length>0 && txt.indexOf(q)<0);',
+    '  });',
+    '};',
+
+    // set initial sort indicators
+    '(function(){',
+    '  var th=document.querySelector("#tbl-ws thead th[data-col=\\"project\\"]");',
+    '  if(th) th.classList.add("sort-asc");',
+    '  var th2=document.querySelector("#tbl-pr thead th[data-col=\\"project\\"]");',
+    '  if(th2) th2.classList.add("sort-asc");',
+    '})();',
+
+    '})();'
+  ].join('\n');
+
+  // ── Rebuild ws table with data attributes for sort/filter ─────────────────
+  var wsThead = '<thead><tr>'
+    +'<th data-col="project" onclick="wsSortBy(\'project\')">Project</th>'
+    +'<th data-col="name"    onclick="wsSortBy(\'name\')">Workspace</th>'
+    +'<th data-col="type"    onclick="wsSortBy(\'type\')">Type</th>'
+    +(ms?'<th data-col="source" onclick="wsSortBy(\'source\')">Source</th>':'')
+    +'<th data-col="used"    onclick="wsSortBy(\'used\')" style="text-align:right">Used (GB)</th>'
+    +'<th data-col="pct"     onclick="wsSortBy(\'pct\')" style="text-align:right">Usage</th>'
+    +'<th data-col="sg"      onclick="wsSortBy(\'sg\')">Storage Group</th>'
+    +'</tr></thead>';
+
+  var wsTbody = '<tbody>'+sorted.map(function(r){
+    var p=Math.min(100,r.pct), c=p>90?'var(--red)':p>75?'var(--amber)':'var(--green)';
+    var sn=r.source.replace(/\.csv$/i,'');
+    var search=[r.project,r.name,r.wsType,r.storageGroup,sn].join(' ').toLowerCase();
+    return '<tr data-project="'+e(r.project)+'" data-name="'+e(r.name)+'" data-type="'+e(r.wsType)+'"'
+      +' data-used="'+r.used+'" data-pct="'+r.pct+'" data-sg="'+e(r.storageGroup)+'"'
+      +' data-source="'+e(sn)+'" data-search="'+e(search)+'">'
+      +'<td><span class="pb">'+e(r.project)+'</span></td>'
+      +'<td style="font-weight:500;color:var(--white)">'+e(r.name)+'</td>'
+      +'<td><span class="tb3">'+e(r.wsType)+'</span></td>'
+      +(ms?'<td><span class="nb">'+e(sn)+'</span></td>':'')
+      +'<td style="color:'+c+';font-variant-numeric:tabular-nums;font-weight:500;text-align:right">'+f(r.used)+'</td>'
+      +'<td><div class="bw"><div class="bt"><div class="bf" style="width:'+p.toFixed(1)+'%;background:'+c+'"></div></div>'
+      +'<span class="bp">'+p.toFixed(1)+'%</span></div></td>'
+      +'<td style="color:var(--muted);font-size:12px">'+e(r.storageGroup)+'</td>'
+      +'</tr>';
+  }).join('')+'</tbody>';
+  wsHTML = '<table id="tbl-ws">'+wsThead+wsTbody+'</table>';
+
+  // ── Rebuild proj table with data attributes ────────────────────────────────
+  var prThead = '<thead><tr>'
+    +'<th data-col="project" onclick="prSortBy(\'project\')">Project</th>'
+    + types.map(function(t,i){
+        return '<th data-col="type_'+i+'" onclick="prSortBy(\'type_'+i+'\')">'
+          +'<span class="thdot" style="background:'+colors[i%colors.length]+'"></span>'+e(t)+'</th>';
+      }).join('')
+    +'<th data-col="total" onclick="prSortBy(\'total\')" style="text-align:right">Total Used</th>'
+    +'<th>Breakdown</th>'
+    +'</tr></thead>';
+
+  var prTbody = '<tbody>'+projData.map(function(p){
+    var typeAttrs = types.map(function(t,i){return 'data-type_'+i+'="'+(p.byType[t]||0)+'"';}).join(' ');
+    var tc = types.map(function(t){
+      var v=p.byType[t]||0, c=colors[types.indexOf(t)%colors.length];
+      return v>0?'<td style="color:'+c+';font-variant-numeric:tabular-nums;font-weight:500;text-align:right">'+f(v)+'</td>'
+                :'<td style="color:var(--muted2);text-align:right">&mdash;</td>';
+    }).join('');
+    var seg = types.map(function(t,i){
+      var v=p.byType[t]||0; if(!v)return'';
+      return '<div class="seg" style="width:'+(v/mx*100).toFixed(2)+'%;background:'+colors[i%colors.length]+'"></div>';
+    }).join('');
+    var tC = p.total>50000?'var(--red)':p.total>10000?'var(--amber)':'var(--text)';
+    return '<tr data-project="'+e(p.project)+'" data-total="'+p.total+'" '+typeAttrs+'>'
+      +'<td><span class="pb">'+e(p.project)+'</span></td>'
+      +tc
+      +'<td style="color:'+tC+';font-weight:600;font-variant-numeric:tabular-nums;text-align:right">'+f(p.total)+'</td>'
+      +'<td><div class="sbar">'+seg+'</div></td>'
+      +'</tr>';
+  }).join('')+'</tbody>';
+  projHTML = '<table id="tbl-pr">'+prThead+prTbody+'</table>';
+
+  // ── Rebuild DNxLB cards with data attributes ───────────────────────────────
+  if(dnxEntries.length) {
+    var newCards = dnxEntries.map(function(en){
+      var nm=en[0],p=en[1];
+      var oT  =p.off.reduce(function(s,r){return s+r.used;},0);
+      var o2T =p.off2.reduce(function(s,r){return s+r.used;},0);
+      var o_2T=p.off_2.reduce(function(s,r){return s+r.used;},0);
+      var comb=oT+o2T+o_2T, hrs=comb/DNX;
+      var oR  =p.off.map(function(r){return'<div class="dnx-row"><span class="dnx-rl">'+e(r.name)+'</span><span class="dnx-rv">'+f(r.used)+'</span></div>';}).join('');
+      var o2R =p.off2.map(function(r){return'<div class="dnx-row"><span class="dnx-rl">'+e(r.name)+'</span><span class="dnx-rv">'+f(r.used)+'</span></div>';}).join('');
+      var o_2R=p.off_2.map(function(r){return'<div class="dnx-row"><span class="dnx-rl">'+e(r.name)+'</span><span class="dnx-rv">'+f(r.used)+'</span></div>';}).join('');
+      var oS  =oT  >0?'<div class="dnx-row" style="margin-bottom:4px"><span class="dnx-rl" style="font-weight:500;color:var(--text)">OFF</span><span class="dnx-rv" style="color:var(--muted)">'+f(oT)+'</span></div>'+oR:'';
+      var o2S =o2T >0?'<div class="dnx-row" style="margin-bottom:4px;margin-top:'+(oT>0?'8px':'0')+'"><span class="dnx-rl" style="font-weight:500;color:var(--text)">OFF2</span><span class="dnx-rv" style="color:var(--muted)">'+f(o2T)+'</span></div>'+o2R:'';
+      var o_2S=o_2T>0?'<div class="dnx-row" style="margin-bottom:4px;margin-top:'+((oT>0||o2T>0)?'8px':'0')+'"><span class="dnx-rl" style="font-weight:500;color:var(--text)">OFF_2</span><span class="dnx-rv" style="color:var(--muted)">'+f(o_2T)+'</span></div>'+o_2R:'';
+      return '<div class="dnx-card" data-project="'+e(nm)+'" data-hrs="'+hrs+'" data-comb="'+comb+'">'
+        +'<div class="dnx-cname">'+e(nm)+'</div>'
+        +'<div>'+oS+o2S+o_2S+'</div>'
+        +'<hr class="dnx-div">'
+        +'<div class="dnx-tot"><span class="dnx-tl">Combined OFF / OFF2 / OFF_2 storage</span><span class="dnx-tv">'+f(comb)+'</span></div>'
+        +'<div class="dnx-hrs"><span class="dnx-hl">Est. DNxLB Proxy hours</span>'
+        +'<div><span class="dnx-hv">'+hrs.toFixed(1)+'</span><span class="dnx-hu">hrs</span></div></div>'
+        +'</div>';
+    }).join('');
+    dnxHTML = '<div class="dnx-wrap">'
+      +'<div class="dnx-info">Estimated DNxLB Proxy hours based on OFF, OFF2 &amp; OFF_2 storage. <strong>1 hr = '+DNX+' GB</strong></div>'
+      +'<div class="dnx-grid" id="dnx-grid">'+newCards+'</div></div>';
+  }
+
+  // ── tab 4: OFF vs Quote ────────────────────────────────────────────────────
+  var qvProjs = {};
+  rows.forEach(function(r){
+    if (r.wsType !== 'OFF' && r.wsType !== 'OFF2' && r.wsType !== 'OFF_2') return;
+    if (!qvProjs[r.project]) qvProjs[r.project] = {off:[],off2:[],off_2:[]};
+    if (r.wsType==='OFF')   qvProjs[r.project].off.push(r);
+    if (r.wsType==='OFF2')  qvProjs[r.project].off2.push(r);
+    if (r.wsType==='OFF_2') qvProjs[r.project].off_2.push(r);
+  });
+  var qvEntries = Object.entries(qvProjs).sort(function(a,b){return a[0].localeCompare(b[0]);});
+  var hasAlloc  = Object.keys(allocMap).length > 0;
+
+  var qvCards = qvEntries.map(function(en){
+    var nm = en[0], p = en[1];
+    var offGB  = p.off.reduce(function(s,r){return s+r.used;},0);
+    var off2GB = p.off2.reduce(function(s,r){return s+r.used;},0);
+    var off_2GB= p.off_2.reduce(function(s,r){return s+r.used;},0);
+    var totalGB = offGB + off2GB + off_2GB;
+    var totalTB = totalGB / 1000;
+
+    function fTB(gb){ return gb>=1000?(gb/1000).toFixed(2)+' TB':gb.toFixed(0)+' GB'; }
+    function makeRows(arr, lbl){
+      if(!arr.length) return '';
+      return '<div class="qv-row" style="margin-bottom:2px"><span class="qv-rl" style="font-weight:500;color:var(--text)">'+lbl+'</span>'
+        +'<span class="qv-rv" style="color:var(--muted)">'+fTB(arr.reduce(function(s,r){return s+r.used;},0))+'</span></div>'
+        +arr.map(function(r){
+          return '<div class="qv-row"><span class="qv-rl" style="padding-left:8px">'+e(r.name)+'</span>'
+            +'<span class="qv-rv">'+fTB(r.used)+'</span></div>';
+        }).join('');
+    }
+    var rowsHTML = makeRows(p.off,'OFF')+makeRows(p.off2,'OFF2')+makeRows(p.off_2,'OFF_2');
+
+    var quotaTB   = allocMap[nm] || null;
+    var cardClass = '', barHTML = '';
+    if (quotaTB !== null) {
+      var pct = (totalTB / quotaTB) * 100;
+      var barPct = Math.min(100, pct).toFixed(1);
+      var barColor, textColor;
+      if (pct >= 90)      { barColor='#ef4444'; textColor='#f87171'; cardClass='qv-crit'; }
+      else if (pct >= 80) { barColor='#f97316'; textColor='#fb923c'; cardClass='qv-warn'; }
+      else                { barColor='#e8e8f0'; textColor='#e8e8f0'; }
+      barHTML = '<div class="qv-bar-labels">'
+        +'<span class="qv-bar-lbl">vs Quota</span>'
+        +'<span class="qv-bar-quota">'+quotaTB.toFixed(1)+' TB allocated</span>'
+        +'</div>'
+        +'<div class="qv-bar-wrap"><div class="qv-bar" style="width:'+barPct+'%;background:'+barColor+'"></div></div>'
+        +'<div class="qv-pct" style="color:'+textColor+'">'+pct.toFixed(1)+'% used</div>';
+    } else {
+      barHTML = '<div class="qv-noalloc">No quota found in allocation sheet</div>';
+    }
+
+    return '<div class="qv-card '+cardClass+'" data-project="'+e(nm)+'">'
+      +'<div class="qv-name">'+e(nm)+'</div>'
+      +rowsHTML
+      +'<hr class="qv-divider">'
+      +'<div class="qv-totrow"><span class="qv-totl">Total OFF storage used</span>'
+      +'<span class="qv-totv">'+fTB(totalGB)+'</span></div>'
+      +barHTML
+      +'</div>';
+  }).join('');
+
+  var qvLegend = hasAlloc
+    ? '<span style="color:#e8e8f0">&#9632;</span> &lt;80% &nbsp;<span style="color:#fb923c">&#9632;</span> 80&ndash;89% &nbsp;<span style="color:#f87171">&#9632;</span> &ge;90%'
+    : '<em style="color:var(--muted2)">No quote file loaded</em>';
+
+  var qvHTML = qvEntries.length
+    ? '<div class="qv-wrap"><div class="qv-info">Total OFF + OFF2 + OFF_2 storage vs allocated quota. &nbsp;&middot;&nbsp; '+qvLegend+'</div>'
+      +'<div class="qv-grid" id="qv-grid">'+qvCards+'</div></div>'
+    : '<div class="qv-empty">No projects with OFF, OFF2 or OFF_2 workspace types found.</div>';
+
+  return '<!DOCTYPE html><html lang="en"><head>'
+    +'<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">'
+    +'<title>Racoon NEXIS \u00b7 '+exportedAt+'</title>'
+    +'<style>'+css+'</style>'
+    +'</head><body>'
+
+    +'<header>'
+    +'<img src="https://racoon.io/wp-content/uploads/2022/11/racoon-logo.png" class="logo" onerror="this.style.display=\'none\'">'
+    +'<span class="badge">Weekly Snapshot</span>'
+    +'</header>'
+
+    +'<div class="fbar">'
+    +'<div style="display:flex;align-items:center"><span class="fdot"></span><span class="flbl">Last updated</span><span class="fdt">'+exportedAt+'</span></div>'
+    +'<span class="frt">Sources: '+e(sourceNames)+'</span>'
+    +'</div>'
+
+    +'<div class="sp">'+srcPillsHTML+'</div>'
+    +'<div class="sb">'+sumbarHTML+'</div>'
+
+    // Toolbar: tabs + per-tab controls
+    +'<div class="toolbar">'
+    +'<div class="tab-grp">'
+    +'<button class="tab active" id="tab-ws"   onclick="showTab(\'ws\')">Workspaces</button>'
+    +'<button class="tab"        id="tab-proj" onclick="showTab(\'proj\')">Project Totals</button>'
+    +'<button class="tab"        id="tab-dnx"  onclick="showTab(\'dnx\')">DNxLB Hours</button>'
+    +'<button class="tab"        id="tab-qv"   onclick="showTab(\'qv\')">OFF vs Quote</button>'
+    +'</div>'
+    +'<div class="tsep"></div>'
+    // Workspace controls
+    +'<div class="ctrl active" id="ctrl-ws">'
+    +'<input class="srch" id="ws-search" placeholder="Filter workspaces\u2026" oninput="wsFilter()">'
+    +'</div>'
+    // Project totals controls
+    +'<div class="ctrl" id="ctrl-proj">'
+    +'<input class="srch" id="pr-search" placeholder="Filter projects\u2026" oninput="prFilter()">'
+    +'<button class="srt active" data-sort="project" onclick="prSortBy(\'project\')">A\u2013Z</button>'
+    +'<button class="srt"        data-sort="total"   onclick="prSortBy(\'total\')">Usage</button>'
+    +'</div>'
+    // DNxLB controls
+    +'<div class="ctrl" id="ctrl-dnx">'
+    +'<input class="srch" id="dnx-search" placeholder="Filter projects\u2026" oninput="dnxFilter()">'
+    +'<button class="srt active" data-sort="project" onclick="dnxSortBy(\'project\')">A\u2013Z</button>'
+    +'<button class="srt"        data-sort="hrs"     onclick="dnxSortBy(\'hrs\')">Hours</button>'
+    +'</div>'
+    // OFF vs Quote controls
+    +'<div class="ctrl" id="ctrl-qv">'
+    +'<input class="srch" id="qv-search" placeholder="Filter projects\u2026" oninput="qvFilter()">'
+    +'</div>'
+    +'</div>'
+
+    +'<div class="panel active" id="panel-ws"><div class="twrap">'+wsHTML+'</div></div>'
+    +'<div class="panel"        id="panel-proj"><div class="twrap">'+projHTML+'</div></div>'
+    +'<div class="panel"        id="panel-dnx">'+dnxHTML+'</div>'
+    +'<div class="panel"        id="panel-qv">'+qvHTML+'</div>'
+
+    +'<footer>'
+    +'<img src="https://racoon.io/wp-content/uploads/2022/11/racoon-logo.png" class="flogo" onerror="this.style.display=\'none\'">'
+    +'<span>Snapshot &middot; '+exportedAt+'</span>'
+    +'</footer>'
+    +'<script>'+tabJS+'<'+'/script>'
+    +'</body></html>';
+}
+
+
+// ── Allocation fetch ───────────────────────────────────────────────────────
+// ── Parse Quote CSV ────────────────────────────────────────────────────────
+// Col A = project name, Col B = storage quota in TB (e.g. "10tb", "5tb")
+function parseQuoteCSV(text) {
+  var map = {};
+  var lines = text.trim().split('\n').map(function(l){ return l.trim(); }).filter(Boolean);
+  lines.slice(1).forEach(function(line){
+    var p    = line.split(',');
+    var proj = p[0] ? p[0].replace(/['"]/g,'').trim() : '';
+    var raw  = p[1] ? p[1].replace(/['"]/g,'').trim().toLowerCase() : '';
+    var m    = raw.match(/^([\d.]+)\s*(tb|gb)?$/);
+    if (!m || !proj) return;
+    var v = parseFloat(m[1]), u = m[2] || 'tb';
+    var tb = u === 'gb' ? v / 1000 : v;
+    if (tb > 0) map[proj] = tb;
+  });
+  return map;
+}
+
+// ── OFF vs Quote ───────────────────────────────────────────────────────────
+function renderQV() {
+  var panel = document.getElementById('qv-panel');
+  if (!panel) return;
+  var q = (document.getElementById('qv-q') ? document.getElementById('qv-q').value : '').toLowerCase();
+
+  // Sum OFF + OFF2 + OFF_2 storage (in GB) per project
+  var projs = {};
+  allRows.forEach(function(r){
+    if (r.wsType !== 'OFF' && r.wsType !== 'OFF2' && r.wsType !== 'OFF_2') return;
+    if (!projs[r.project]) projs[r.project] = { off:[], off2:[], off_2:[] };
+    if (r.wsType==='OFF')   projs[r.project].off.push(r);
+    if (r.wsType==='OFF2')  projs[r.project].off2.push(r);
+    if (r.wsType==='OFF_2') projs[r.project].off_2.push(r);
+  });
+
+  var entries = Object.entries(projs)
+    .sort(function(a,b){ return a[0].localeCompare(b[0]); })
+    .filter(function(e){ return !q || e[0].toLowerCase().indexOf(q) >= 0; });
+
+  if (!entries.length) {
+    panel.innerHTML = '<div class="qv-empty">No projects with OFF, OFF2 or OFF_2 workspace types found.</div>';
+    return;
+  }
+
+  var hasAlloc = Object.keys(allocations).length > 0;
+
+  var cards = entries.map(function(entry){
+    var name = entry[0], p = entry[1];
+    var offGB  = p.off.reduce(function(s,r){ return s+r.used; }, 0);
+    var off2GB = p.off2.reduce(function(s,r){ return s+r.used; }, 0);
+    var off_2GB= p.off_2.reduce(function(s,r){ return s+r.used; }, 0);
+    var totalGB = offGB + off2GB + off_2GB;
+    var totalTB = totalGB / 1000;
+
+    // Workspace rows
+    function makeRows(arr, label) {
+      if (!arr.length) return '';
+      return '<div class="qv-row" style="margin-bottom:2px"><span class="qv-rl" style="font-weight:500;color:var(--text)">'+label+'</span>'
+        +'<span class="qv-rv" style="color:var(--muted)">'+fmtTB(arr.reduce(function(s,r){return s+r.used;},0))+'</span></div>'
+        + arr.map(function(r){
+            return '<div class="qv-row"><span class="qv-rl" style="padding-left:8px">'+esc(r.name)+'</span>'
+              +'<span class="qv-rv">'+fmtTB(r.used)+'</span></div>';
+          }).join('');
+    }
+    var rowsHTML = makeRows(p.off,'OFF') + makeRows(p.off2,'OFF2') + makeRows(p.off_2,'OFF_2');
+
+    // Quota comparison
+    var quotaTB  = allocations[name] || null;
+    var cardClass = '';
+    var barHTML   = '';
+    var pctHTML   = '';
+
+    if (quotaTB !== null) {
+      var pct      = (totalTB / quotaTB) * 100;
+      var barPct   = Math.min(100, pct);
+      var barColor, textColor;
+      if (pct >= 90)      { barColor='#ef4444'; textColor='#f87171'; cardClass='qv-crit'; }
+      else if (pct >= 80) { barColor='#f97316'; textColor='#fb923c'; cardClass='qv-warn'; }
+      else                { barColor='#e8e8f0'; textColor='#e8e8f0'; }
+
+      barHTML = '<div class="qv-bar-section">'
+        +'<div class="qv-bar-labels">'
+        +'<span class="qv-bar-lbl">vs Quota</span>'
+        +'<span class="qv-bar-quota">'+quotaTB.toFixed(1)+' TB allocated</span>'
+        +'</div>'
+        +'<div class="qv-bar-wrap"><div class="qv-bar" style="width:'+barPct.toFixed(1)+'%;background:'+barColor+'"></div></div>'
+        +'<div class="qv-pct" style="color:'+textColor+'">'+pct.toFixed(1)+'% used</div>'
+        +'</div>';
+    } else {
+      barHTML = '<div class="qv-noalloc">No quota found in allocation sheet</div>';
+    }
+
+    return '<div class="qv-card '+(cardClass)+'">'
+      +'<div class="qv-name">'+esc(name)+'</div>'
+      + rowsHTML
+      +'<hr class="qv-divider">'
+      +'<div class="qv-totrow">'
+      +'<span class="qv-totl">Total OFF storage used</span>'
+      +'<span class="qv-totv">'+fmtTB(totalGB)+'</span>'
+      +'</div>'
+      + barHTML
+      +'</div>';
+  }).join('');
+
+  var legend = hasAlloc
+    ? '<span style="color:#e8e8f0">&#9632;</span> &lt;80% &nbsp;'
+      +'<span style="color:#fb923c">&#9632;</span> 80&ndash;89% &nbsp;'
+      +'<span style="color:#f87171">&#9632;</span> &ge;90%'
+    : '<em style="color:var(--muted2)">Allocation data loading&hellip;</em>';
+
+  panel.innerHTML = '<div class="qv-wrap">'
+    +'<div class="qv-info">Total OFF + OFF2 + OFF_2 storage used per project vs NEXIS quota from allocation sheet. &nbsp;&middot;&nbsp; '+legend+'</div>'
+    +'<div class="qv-grid">'+cards+'</div>'
+    +'</div>';
+}
+
+// TB formatter helper (accepts GB input)
+function fmtTB(gb) {
+  if (gb >= 1000) return (gb/1000).toFixed(2)+' TB';
+  return gb.toFixed(0)+' GB';
+}
+
+function fmt(g) { return g >= 1000 ? (g/1000).toFixed(2)+' TB' : g.toFixed(0)+' GB'; }
+function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+</script>
+</body>
+</html>
