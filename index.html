@@ -228,7 +228,7 @@ footer{padding:20px 40px;border-top:1px solid var(--border);display:flex;align-i
     <input type="file" id="csv-input" accept=".csv" multiple>
     <div class="drop-hint">or drag and drop CSV files anywhere on this card</div>
     <div class="file-list" id="file-list"></div>
-    <button class="btn-view" id="btn-view" onclick="buildDashboard()">View Dashboard &rarr;</button>
+    <button class="btn-view" id="btn-view">View Dashboard &rarr;</button>
   </div>
 </div>
 
@@ -238,29 +238,29 @@ footer{padding:20px 40px;border-top:1px solid var(--border);display:flex;align-i
   <div class="sum-bar"   id="sum-bar"></div>
   <div class="toolbar">
     <div class="tab-grp">
-      <button class="tab active" id="tab-ws"  onclick="switchView('ws')">Workspaces</button>
-      <button class="tab"        id="tab-pr"  onclick="switchView('proj')">Project Totals</button>
-      <button class="tab"        id="tab-dnx" onclick="switchView('dnx')">DNxLB Hours</button>
-      <button class="tab"        id="tab-qv"  onclick="switchView('qv')">OFF vs Quote</button>
+      <button class="tab active" id="tab-ws">Workspaces</button>
+      <button class="tab"        id="tab-pr">Project Totals</button>
+      <button class="tab"        id="tab-dnx">DNxLB Hours</button>
+      <button class="tab"        id="tab-qv">OFF vs Quote</button>
     </div>
     <div class="tsep"></div>
-    <button class="btn-share" onclick="shareView()">
+    <button class="btn-share">
       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
       Share View
     </button>
     <div id="ws-ctrl" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-      <input class="srch" id="ws-q" placeholder="Filter&hellip;" oninput="renderWS()">
-      <button class="srt" onclick="setSort('project')">Project</button>
-      <button class="srt active" onclick="setSort('used')">Usage &updownarrow;</button>
-      <button class="srt" onclick="setSort('name')">A&ndash;Z</button>
+      <input class="srch" id="ws-q" placeholder="Filter&hellip;">
+      <button class="srt">Project</button>
+      <button class="srt active">Usage &updownarrow;</button>
+      <button class="srt">A&ndash;Z</button>
     </div>
     <div id="pr-ctrl" style="display:none;gap:8px;align-items:center;flex-wrap:wrap">
-      <input class="srch" id="pr-q" placeholder="Filter projects&hellip;" oninput="renderProj()">
-      <button class="srt active" id="pr-su" onclick="setProjSort('totalUsed')">Usage &updownarrow;</button>
-      <button class="srt"        id="pr-sn" onclick="setProjSort('project')">A&ndash;Z</button>
+      <input class="srch" id="pr-q" placeholder="Filter projects&hellip;">
+      <button class="srt active" id="pr-su">Usage &updownarrow;</button>
+      <button class="srt"        id="pr-sn">A&ndash;Z</button>
     </div>
     <div id="dnx-ctrl" style="display:none"></div>
-    <div id="qv-ctrl"  style="display:none;gap:8px;align-items:center;flex-wrap:wrap"><input class="srch" id="qv-q" placeholder="Filter projects…" oninput="renderQV()"></div>
+    <div id="qv-ctrl"  style="display:none;gap:8px;align-items:center;flex-wrap:wrap"><input class="srch" id="qv-q" placeholder="Filter projects…"></div>
   </div>
   <div class="content">
     <div class="twrap" id="tbl"></div>
@@ -341,7 +341,7 @@ function refreshUI() {
       return '<div class="fp">'
         + '<div><div class="fp-name">' + esc(name) + '</div>'
         + '<div class="fp-meta" style="color:var(--accent-lt)">&#9632; Quote data &mdash; ' + f.count + ' projects loaded</div></div>'
-        + '<button class="fp-rm" onclick="removeFile(\'' + esc(name) + '\')">&#215;</button>'
+        + '<button class="fp-rm">&#215;</button>'
         + '</div>';
     }
     var ok = f.rows.length > 0;
@@ -349,7 +349,7 @@ function refreshUI() {
       + '<div><div class="fp-name">' + esc(name) + '</div>'
       + '<div class="fp-meta' + (ok ? '' : ' fp-warn') + '">'
       + (ok ? f.rows.length + ' workspaces' : '&#9888; No valid rows found') + '</div></div>'
-      + '<button class="fp-rm" onclick="removeFile(\'' + esc(name) + '\')">&#215;</button>'
+      + '<button class="fp-rm">&#215;</button>'
       + '</div>';
   }).join('');
   var hasData = entries.some(function(e) { return !e[1].isQuote && e[1].rows.length > 0; });
@@ -456,7 +456,7 @@ function buildSrcPanel() {
   var html = '<span class="src-lbl">Sources (' + Object.keys(files).length + ')</span>';
   html += Object.keys(files).map(function(n) {
     return '<span class="src-pill">' + esc(n)
-      + '<button class="src-rm" onclick="removeFile(\'' + esc(n) + '\')">&#215;</button></span>';
+      + '<button class="src-rm">&#215;</button></span>';
   }).join('');
   html += '<label class="add-more-label" for="csv-more">+ Add more</label>'
        + '<input type="file" id="csv-more" accept=".csv" multiple style="display:none">';
@@ -488,10 +488,10 @@ function buildSummary() {
 }
 
 function buildTypeChips() {
-  var h = '<button class="chip active" id="chip-all" onclick="toggleAll()">All</button>';
+  var h = '<button class="chip active" id="chip-all">All</button>';
   allTypes.forEach(function(t,i){
     var col = COLORS[i%COLORS.length];
-    h += '<button class="chip" id="chip-'+t+'" onclick="toggleType(\''+t+'\''+')">'
+    h += '<button class="chip" id="chip-'+t+'">'
        + '<span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:'+col+';margin-right:4px;vertical-align:middle"></span>'
        + t+'</button>';
   });
@@ -545,13 +545,13 @@ function renderWS() {
   d.sort(function(a,b){var av=a[wsK],bv=b[wsK];return typeof av==='string'?wsD*av.localeCompare(bv):wsD*(av-bv);});
   if (!d.length){document.getElementById('tbl').innerHTML='<div class="nores">No workspaces match.</div>';return;}
   var th='<thead><tr>'
-    +'<th onclick="setSort(\'project\')">Project</th>'
-    +'<th onclick="setSort(\'name\')">Workspace</th>'
-    +'<th onclick="setSort(\'wsType\')">Type</th>'
-    +(ms?'<th onclick="setSort(\'source\')">Source</th>':'')
-    +'<th onclick="setSort(\'used\')">Used (GB)</th>'
-    +'<th onclick="setSort(\'pct\')">Usage</th>'
-    +'<th onclick="setSort(\'storageGroup\')">Storage Group</th>'
+    +'<th>Project</th>'
+    +'<th>Workspace</th>'
+    +'<th>Type</th>'
+    +(ms?'<th>Source</th>':'')
+    +'<th>Used (GB)</th>'
+    +'<th>Usage</th>'
+    +'<th>Storage Group</th>'
     +'</tr></thead>';
   var tb='<tbody>'+d.map(function(r){
     var p=Math.min(100,r.pct),c=p>90?'var(--red)':p>75?'var(--amber)':'var(--green)',sn=r.source.replace(/\.csv$/i,'');
@@ -591,9 +591,9 @@ function renderProj() {
   else data.sort(function(a,b){var av=a[prK],bv=b[prK];return typeof av==='string'?prD*av.localeCompare(bv):prD*(av-bv);});
   if(!data.length){document.getElementById('tbl').innerHTML='<div class="nores">No projects match.</div>';return;}
   var mx=1;data.forEach(function(p){var s=allTypes.reduce(function(a,t){return a+(p.byType[t]||0);},0);if(s>mx)mx=s;});
-  var th='<thead><tr><th onclick="setProjSort(\'project\')">Project</th>';
-  vT.forEach(function(t){var c=COLORS[allTypes.indexOf(t)%COLORS.length];th+='<th onclick="setProjSort(\'type_'+t+'\')"><span class="thdot" style="background:'+c+'"></span>'+t+'</th>';});
-  th+='<th onclick="setProjSort(\'totalUsed\')">Total Used</th><th>Breakdown</th></tr></thead>';
+  var th='<thead><tr><th>Project</th>';
+  vT.forEach(function(t){var c=COLORS[allTypes.indexOf(t)%COLORS.length];th+='<th><span class="thdot" style="background:'+c+'"></span>'+t+'</th>';});
+  th+='<th>Total Used</th><th>Breakdown</th></tr></thead>';
   var tb='<tbody>'+data.map(function(p){
     var tc=vT.map(function(t){var v=p.byType[t]||0,c=COLORS[allTypes.indexOf(t)%COLORS.length];
       return v>0?'<td style="color:'+c+';font-variant-numeric:tabular-nums;font-weight:500">'+fmt(v)+'</td>':'<td style="color:var(--muted2)">&mdash;</td>';}).join('');
@@ -1012,18 +1012,45 @@ function buildShareHTML(rows, types, colors, exportedAt, sourceNames, allocMap) 
     '  if(th2) th2.classList.add("sort-asc");',
     '})();',
 
+    '(function(){',
+    '  ["ws","proj","dnx","qv"].forEach(function(v){',
+    '    var btn=document.getElementById("tab-"+v);',
+    '    if(btn)btn.addEventListener("click",function(){showTab(v);});',
+    '  });',
+    '  document.querySelectorAll("thead th[data-col]").forEach(function(th){',
+    '    var col=th.getAttribute("data-col");',
+    '    var tbl=th.closest("table");',
+    '    if(!tbl)return;',
+    '    th.addEventListener("click",function(){',
+    '      if(tbl.id==="tbl-ws") wsSortBy(col);',
+    '      else if(tbl.id==="tbl-pr") prSortBy(col);',
+    '    });',
+    '  });',
+    '  document.querySelectorAll(".srt[data-sort]").forEach(function(btn){',
+    '    var sort=btn.getAttribute("data-sort");',
+    '    var ctrl=btn.closest(".ctrl");if(!ctrl)return;',
+    '    btn.addEventListener("click",function(){',
+    '      if(ctrl.id==="ctrl-proj") prSortBy(sort);',
+    '      else if(ctrl.id==="ctrl-dnx") dnxSortBy(sort);',
+    '    });',
+    '  });',
+    '  var ws=document.getElementById("ws-search");if(ws)ws.addEventListener("input",function(){wsFilter();});',
+    '  var pr=document.getElementById("pr-search");if(pr)pr.addEventListener("input",function(){prFilter();});',
+    '  var dx=document.getElementById("dnx-search");if(dx)dx.addEventListener("input",function(){dnxFilter();});',
+    '  var qv=document.getElementById("qv-search");if(qv)qv.addEventListener("input",function(){qvFilter();});',
+    '})();',
     '})();'
   ].join('\n');
 
   // ── Rebuild ws table with data attributes for sort/filter ─────────────────
   var wsThead = '<thead><tr>'
-    +'<th data-col="project" onclick="wsSortBy(\'project\')">Project</th>'
-    +'<th data-col="name"    onclick="wsSortBy(\'name\')">Workspace</th>'
-    +'<th data-col="type"    onclick="wsSortBy(\'type\')">Type</th>'
-    +(ms?'<th data-col="source" onclick="wsSortBy(\'source\')">Source</th>':'')
-    +'<th data-col="used"    onclick="wsSortBy(\'used\')" style="text-align:right">Used (GB)</th>'
-    +'<th data-col="pct"     onclick="wsSortBy(\'pct\')" style="text-align:right">Usage</th>'
-    +'<th data-col="sg"      onclick="wsSortBy(\'sg\')">Storage Group</th>'
+    +'<th data-col="project">Project</th>'
+    +'<th data-col="name">Workspace</th>'
+    +'<th data-col="type">Type</th>'
+    +(ms?'<th data-col="source">Source</th>':'')
+    +'<th data-col="used" style="text-align:right">Used (GB)</th>'
+    +'<th data-col="pct" style="text-align:right">Usage</th>'
+    +'<th data-col="sg">Storage Group</th>'
     +'</tr></thead>';
 
   var wsTbody = '<tbody>'+sorted.map(function(r){
@@ -1047,12 +1074,12 @@ function buildShareHTML(rows, types, colors, exportedAt, sourceNames, allocMap) 
 
   // ── Rebuild proj table with data attributes ────────────────────────────────
   var prThead = '<thead><tr>'
-    +'<th data-col="project" onclick="prSortBy(\'project\')">Project</th>'
+    +'<th data-col="project">Project</th>'
     + types.map(function(t,i){
-        return '<th data-col="type_'+i+'" onclick="prSortBy(\'type_'+i+'\')">'
+        return '<th data-col="type_'+i+'">'
           +'<span class="thdot" style="background:'+colors[i%colors.length]+'"></span>'+e(t)+'</th>';
       }).join('')
-    +'<th data-col="total" onclick="prSortBy(\'total\')" style="text-align:right">Total Used</th>'
+    +'<th data-col="total" style="text-align:right">Total Used</th>'
     +'<th>Breakdown</th>'
     +'</tr></thead>';
 
@@ -1197,31 +1224,31 @@ function buildShareHTML(rows, types, colors, exportedAt, sourceNames, allocMap) 
     // Toolbar: tabs + per-tab controls
     +'<div class="toolbar">'
     +'<div class="tab-grp">'
-    +'<button class="tab active" id="tab-ws"   onclick="showTab(\'ws\')">Workspaces</button>'
-    +'<button class="tab"        id="tab-proj" onclick="showTab(\'proj\')">Project Totals</button>'
-    +'<button class="tab"        id="tab-dnx"  onclick="showTab(\'dnx\')">DNxLB Hours</button>'
-    +'<button class="tab"        id="tab-qv"   onclick="showTab(\'qv\')">OFF vs Quote</button>'
+    +'<button class="tab active" id="tab-ws">Workspaces</button>'
+    +'<button class="tab"        id="tab-proj">Project Totals</button>'
+    +'<button class="tab"        id="tab-dnx">DNxLB Hours</button>'
+    +'<button class="tab"        id="tab-qv">OFF vs Quote</button>'
     +'</div>'
     +'<div class="tsep"></div>'
     // Workspace controls
     +'<div class="ctrl active" id="ctrl-ws">'
-    +'<input class="srch" id="ws-search" placeholder="Filter workspaces\u2026" oninput="wsFilter()">'
+    +'<input class="srch" id="ws-search" placeholder="Filter workspaces\u2026">'
     +'</div>'
     // Project totals controls
     +'<div class="ctrl" id="ctrl-proj">'
-    +'<input class="srch" id="pr-search" placeholder="Filter projects\u2026" oninput="prFilter()">'
-    +'<button class="srt active" data-sort="project" onclick="prSortBy(\'project\')">A\u2013Z</button>'
-    +'<button class="srt"        data-sort="total"   onclick="prSortBy(\'total\')">Usage</button>'
+    +'<input class="srch" id="pr-search" placeholder="Filter projects\u2026">'
+    +'<button class="srt active" data-sort="project">A\u2013Z</button>'
+    +'<button class="srt"        data-sort="total">Usage</button>'
     +'</div>'
     // DNxLB controls
     +'<div class="ctrl" id="ctrl-dnx">'
-    +'<input class="srch" id="dnx-search" placeholder="Filter projects\u2026" oninput="dnxFilter()">'
-    +'<button class="srt active" data-sort="project" onclick="dnxSortBy(\'project\')">A\u2013Z</button>'
-    +'<button class="srt"        data-sort="hrs"     onclick="dnxSortBy(\'hrs\')">Hours</button>'
+    +'<input class="srch" id="dnx-search" placeholder="Filter projects\u2026">'
+    +'<button class="srt active" data-sort="project">A\u2013Z</button>'
+    +'<button class="srt"        data-sort="hrs">Hours</button>'
     +'</div>'
     // OFF vs Quote controls
     +'<div class="ctrl" id="ctrl-qv">'
-    +'<input class="srch" id="qv-search" placeholder="Filter projects\u2026" oninput="qvFilter()">'
+    +'<input class="srch" id="qv-search" placeholder="Filter projects\u2026">'
     +'</div>'
     +'</div>'
 
@@ -1235,7 +1262,66 @@ function buildShareHTML(rows, types, colors, exportedAt, sourceNames, allocMap) 
     +'<span>Snapshot &middot; '+exportedAt+'</span>'
     +'</footer>'
     +'<script>'+tabJS+'<'+'/script>'
-    +'</body></html>';
+    +'
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  // Tab buttons
+  ['ws','proj','dnx','qv'].forEach(function(v) {
+    var btn = document.getElementById('tab-' + v);
+    if (btn) btn.addEventListener('click', function() { showTab(v); });
+  });
+  // Share button
+  var shareBtn = document.getElementById('share-btn');
+  if (shareBtn) shareBtn.addEventListener('click', function() { shareView(this); });
+  // Build button
+  var buildBtn = document.getElementById('build-btn');
+  if (buildBtn) buildBtn.addEventListener('click', function() { buildDashboard(); });
+  // Table header sort
+  document.querySelectorAll('thead th[data-col]').forEach(function(th) {
+    var col = th.getAttribute('data-col');
+    var tbl = th.closest('table');
+    if (!tbl) return;
+    th.addEventListener('click', function() {
+      if (tbl.id === 'tbl-ws')      wsSortBy(col);
+      else if (tbl.id === 'tbl-pr') prSortBy(col);
+    });
+  });
+  // Sort buttons
+  document.querySelectorAll('.srt[data-sort]').forEach(function(btn) {
+    var sort = btn.getAttribute('data-sort');
+    var ctrl = btn.closest('.ctrl');
+    if (!ctrl) return;
+    btn.addEventListener('click', function() {
+      if (ctrl.id === 'ctrl-proj')     prSortBy(sort);
+      else if (ctrl.id === 'ctrl-dnx') dnxSortBy(sort);
+    });
+  });
+  // Search inputs
+  var ids = {
+    'ws-search':  function() { wsFilter();    },
+    'pr-search':  function() { prFilter();    },
+    'dnx-search': function() { dnxFilter();   },
+    'qv-search':  function() { qvFilter();    }
+  };
+  Object.keys(ids).forEach(function(id) {
+    var el = document.getElementById(id);
+    if (el) el.addEventListener('input', ids[id]);
+  });
+  // Type toggle checkboxes / buttons
+  document.querySelectorAll('[data-type]').forEach(function(el) {
+    var t = el.getAttribute('data-type');
+    if (el.tagName === 'INPUT') {
+      el.addEventListener('change', function() { toggleType(t); });
+    } else {
+      el.addEventListener('click', function() { toggleType(t); });
+    }
+  });
+  // Toggle all
+  var toggleAllBtn = document.getElementById('toggle-all');
+  if (toggleAllBtn) toggleAllBtn.addEventListener('click', function() { toggleAll(); });
+});
+</script>
+</body></html>';
 }
 
 
@@ -1363,6 +1449,65 @@ function fmtTB(gb) {
 
 function fmt(g) { return g >= 1000 ? (g/1000).toFixed(2)+' TB' : g.toFixed(0)+' GB'; }
 function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+</script>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  // Tab buttons
+  ['ws','proj','dnx','qv'].forEach(function(v) {
+    var btn = document.getElementById('tab-' + v);
+    if (btn) btn.addEventListener('click', function() { showTab(v); });
+  });
+  // Share button
+  var shareBtn = document.getElementById('share-btn');
+  if (shareBtn) shareBtn.addEventListener('click', function() { shareView(this); });
+  // Build button
+  var buildBtn = document.getElementById('build-btn');
+  if (buildBtn) buildBtn.addEventListener('click', function() { buildDashboard(); });
+  // Table header sort
+  document.querySelectorAll('thead th[data-col]').forEach(function(th) {
+    var col = th.getAttribute('data-col');
+    var tbl = th.closest('table');
+    if (!tbl) return;
+    th.addEventListener('click', function() {
+      if (tbl.id === 'tbl-ws')      wsSortBy(col);
+      else if (tbl.id === 'tbl-pr') prSortBy(col);
+    });
+  });
+  // Sort buttons
+  document.querySelectorAll('.srt[data-sort]').forEach(function(btn) {
+    var sort = btn.getAttribute('data-sort');
+    var ctrl = btn.closest('.ctrl');
+    if (!ctrl) return;
+    btn.addEventListener('click', function() {
+      if (ctrl.id === 'ctrl-proj')     prSortBy(sort);
+      else if (ctrl.id === 'ctrl-dnx') dnxSortBy(sort);
+    });
+  });
+  // Search inputs
+  var ids = {
+    'ws-search':  function() { wsFilter();    },
+    'pr-search':  function() { prFilter();    },
+    'dnx-search': function() { dnxFilter();   },
+    'qv-search':  function() { qvFilter();    }
+  };
+  Object.keys(ids).forEach(function(id) {
+    var el = document.getElementById(id);
+    if (el) el.addEventListener('input', ids[id]);
+  });
+  // Type toggle checkboxes / buttons
+  document.querySelectorAll('[data-type]').forEach(function(el) {
+    var t = el.getAttribute('data-type');
+    if (el.tagName === 'INPUT') {
+      el.addEventListener('change', function() { toggleType(t); });
+    } else {
+      el.addEventListener('click', function() { toggleType(t); });
+    }
+  });
+  // Toggle all
+  var toggleAllBtn = document.getElementById('toggle-all');
+  if (toggleAllBtn) toggleAllBtn.addEventListener('click', function() { toggleAll(); });
+});
 </script>
 </body>
 </html>
