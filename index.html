@@ -1235,75 +1235,7 @@ function buildShareHTML(rows, types, colors, exportedAt, sourceNames, allocMap) 
     +'<span>Snapshot &middot; '+exportedAt+'</span>'
     +'</footer>'
     +'<script>'+tabJS+'<'+'/script>'
-    +'
-<script>
-/* Google Sites compatibility — mirrors onclick/oninput via addEventListener */
-document.addEventListener('DOMContentLoaded', function() {
-
-  /* Tab / view buttons */
-  var tabMap = { 'tab-ws':'ws', 'tab-proj':'proj', 'tab-dnx':'dnx', 'tab-qv':'qv' };
-  Object.keys(tabMap).forEach(function(id) {
-    var el = document.getElementById(id);
-    if (el) el.addEventListener('click', function() {
-      if (typeof switchView === 'function') switchView(tabMap[id]);
-      else if (typeof showTab === 'function') showTab(tabMap[id]);
-    });
-  });
-
-  /* Build / Share buttons */
-  var btnView = document.getElementById('btn-view');
-  if (btnView) btnView.addEventListener('click', function() { buildDashboard(); });
-
-  document.querySelectorAll('.btn-share').forEach(function(el) {
-    el.addEventListener('click', function() { shareView(); });
-  });
-
-  /* Search inputs */
-  var searches = {
-    'ws-search':  function() { wsFilter(); },
-    'pr-search':  function() { prFilter(); },
-    'dnx-search': function() { dnxFilter(); },
-    'qv-search':  function() { qvFilter(); }
-  };
-  Object.keys(searches).forEach(function(id) {
-    var el = document.getElementById(id);
-    if (el) el.addEventListener('input', searches[id]);
-  });
-
-  /* Table header sort — wired on click using data-col + table id */
-  document.addEventListener('click', function(e) {
-    var th = e.target.closest('thead th[data-col]');
-    if (!th) return;
-    var col = th.getAttribute('data-col');
-    var tbl = th.closest('table');
-    if (!tbl) return;
-    if (tbl.id === 'tbl-ws' && typeof wsSortBy === 'function') wsSortBy(col);
-    else if (tbl.id === 'tbl-pr' && typeof prSortBy === 'function') prSortBy(col);
-  });
-
-  /* Sort buttons — wired on click using data-sort + parent ctrl id */
-  document.addEventListener('click', function(e) {
-    var btn = e.target.closest('.srt[data-sort]');
-    if (!btn) return;
-    var sort = btn.getAttribute('data-sort');
-    var ctrl = btn.closest('.ctrl');
-    if (!ctrl) return;
-    if (ctrl.id === 'ctrl-proj' && typeof prSortBy === 'function') prSortBy(sort);
-    else if (ctrl.id === 'ctrl-dnx' && typeof dnxSortBy === 'function') dnxSortBy(sort);
-  });
-
-  /* Type chip toggles (dynamically rendered, use event delegation) */
-  document.addEventListener('click', function(e) {
-    var chip = e.target.closest('.chip[id^="chip-"]');
-    if (!chip) return;
-    var id = chip.id;
-    if (id === 'chip-all' && typeof toggleAll === 'function') toggleAll();
-    else if (typeof toggleType === 'function') toggleType(id.replace('chip-', ''));
-  });
-
-});
-</script>
-</body></html>';
+    +'</body></html>';
 }
 
 
@@ -1432,73 +1364,42 @@ function fmtTB(gb) {
 function fmt(g) { return g >= 1000 ? (g/1000).toFixed(2)+' TB' : g.toFixed(0)+' GB'; }
 function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 </script>
-
 <script>
-/* Google Sites compatibility — mirrors onclick/oninput via addEventListener */
-document.addEventListener('DOMContentLoaded', function() {
-
-  /* Tab / view buttons */
-  var tabMap = { 'tab-ws':'ws', 'tab-proj':'proj', 'tab-dnx':'dnx', 'tab-qv':'qv' };
-  Object.keys(tabMap).forEach(function(id) {
-    var el = document.getElementById(id);
-    if (el) el.addEventListener('click', function() {
-      if (typeof switchView === 'function') switchView(tabMap[id]);
-      else if (typeof showTab === 'function') showTab(tabMap[id]);
+/* Supplementary event wiring for Google Sites iframe compatibility.
+   Mirrors existing onclick attrs — does not replace them. */
+(function() {
+  function ready(fn) {
+    if (document.readyState !== 'loading') fn();
+    else document.addEventListener('DOMContentLoaded', fn);
+  }
+  ready(function() {
+    /* Tab buttons */
+    ['ws','proj','dnx','qv'].forEach(function(v) {
+      var el = document.getElementById('tab-' + v);
+      if (el) el.addEventListener('click', function() {
+        if (typeof switchView === 'function') switchView(v);
+        else if (typeof showTab === 'function') showTab(v);
+      });
+    });
+    /* Build button */
+    var bv = document.getElementById('btn-view');
+    if (bv) bv.addEventListener('click', function() {
+      if (typeof buildDashboard === 'function') buildDashboard();
+    });
+    /* Share button */
+    document.querySelectorAll('.btn-share').forEach(function(el) {
+      el.addEventListener('click', function() {
+        if (typeof shareView === 'function') shareView();
+      });
+    });
+    /* File input */
+    var fi = document.getElementById('csv-input');
+    if (fi) fi.addEventListener('change', function() {
+      if (this.files && this.files.length && typeof readFiles === 'function')
+        readFiles(this.files);
     });
   });
-
-  /* Build / Share buttons */
-  var btnView = document.getElementById('btn-view');
-  if (btnView) btnView.addEventListener('click', function() { buildDashboard(); });
-
-  document.querySelectorAll('.btn-share').forEach(function(el) {
-    el.addEventListener('click', function() { shareView(); });
-  });
-
-  /* Search inputs */
-  var searches = {
-    'ws-search':  function() { wsFilter(); },
-    'pr-search':  function() { prFilter(); },
-    'dnx-search': function() { dnxFilter(); },
-    'qv-search':  function() { qvFilter(); }
-  };
-  Object.keys(searches).forEach(function(id) {
-    var el = document.getElementById(id);
-    if (el) el.addEventListener('input', searches[id]);
-  });
-
-  /* Table header sort — wired on click using data-col + table id */
-  document.addEventListener('click', function(e) {
-    var th = e.target.closest('thead th[data-col]');
-    if (!th) return;
-    var col = th.getAttribute('data-col');
-    var tbl = th.closest('table');
-    if (!tbl) return;
-    if (tbl.id === 'tbl-ws' && typeof wsSortBy === 'function') wsSortBy(col);
-    else if (tbl.id === 'tbl-pr' && typeof prSortBy === 'function') prSortBy(col);
-  });
-
-  /* Sort buttons — wired on click using data-sort + parent ctrl id */
-  document.addEventListener('click', function(e) {
-    var btn = e.target.closest('.srt[data-sort]');
-    if (!btn) return;
-    var sort = btn.getAttribute('data-sort');
-    var ctrl = btn.closest('.ctrl');
-    if (!ctrl) return;
-    if (ctrl.id === 'ctrl-proj' && typeof prSortBy === 'function') prSortBy(sort);
-    else if (ctrl.id === 'ctrl-dnx' && typeof dnxSortBy === 'function') dnxSortBy(sort);
-  });
-
-  /* Type chip toggles (dynamically rendered, use event delegation) */
-  document.addEventListener('click', function(e) {
-    var chip = e.target.closest('.chip[id^="chip-"]');
-    if (!chip) return;
-    var id = chip.id;
-    if (id === 'chip-all' && typeof toggleAll === 'function') toggleAll();
-    else if (typeof toggleType === 'function') toggleType(id.replace('chip-', ''));
-  });
-
-});
+})();
 </script>
 </body>
 </html>
