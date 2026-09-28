@@ -275,7 +275,9 @@ footer{padding:20px 40px;border-top:1px solid var(--border);display:flex;align-i
 </footer>
 
 <script>
-const ALLOWED = new Set(['OFF','OFF2','OFF_2','FD','ON','PROJ','RENDER','RENDERS','HDR','SDR','ONLINE','RUSHES','MUSIC']);
+const ALLOWED  = new Set(['OFF','OFF2','OFF_2','FD','ON','PROJ','RENDER','RENDERS','HDR','SDR','ONLINE','RUSHES','MUSIC','MEDIA','MEDIA_A','MEDIA_B']);
+// Workspace types counted in OFF vs Quote (all "content/ingest" storage)
+const QV_TYPES = new Set(['OFF','OFF2','OFF_2','RUSHES','MUSIC','MEDIA','MEDIA_A','MEDIA_B']);
 const COLORS  = ['#e8ff47','#ff6b35','#3ddc84','#60a5fa','#f472b6','#a78bfa','#fb923c','#34d399','#f87171','#38bdf8'];
 const DNX_GB  = 20;
 const files = {};
@@ -381,13 +383,20 @@ function parseCSV(text, src) {
     var name    = c[cN].replace(/['"]/g,'').trim();
     var parts   = name.split('_').map(function(p){ return p.trim(); });
     // ── Workspace type: last segment(s) ───────────────────────────────────
-    // Detect OFF_2 (last two parts are 'OFF' and '2')
+    // Detect compound workspace types (last two parts form the type)
     var wsType, typeLen;
-    if (parts.length >= 3 && parts[parts.length-1] === '2' && parts[parts.length-2] === 'OFF') {
+    var lp = parts[parts.length - 1];
+    var slp = parts.length >= 2 ? parts[parts.length - 2] : '';
+    if (parts.length >= 3 && lp === '2' && slp === 'OFF') {
+      // OFF_2
       wsType  = 'OFF_2';
       typeLen = 2;
+    } else if (parts.length >= 3 && /^[A-Z]$/.test(lp) && slp === 'MEDIA') {
+      // EVS_MEDIA_A / EVS_MEDIA_B etc — single letter suffix on MEDIA
+      wsType  = 'MEDIA_' + lp;
+      typeLen = 2;
     } else {
-      wsType  = parts.length > 1 ? parts[parts.length - 1] : '-';
+      wsType  = parts.length > 1 ? lp : '-';
       typeLen = 1;
     }
     if (!ALLOWED.has(wsType)) continue;
@@ -402,8 +411,12 @@ function parseCSV(text, src) {
     if (seriesIdx !== -1) {
       // Project = everything up to and including the series segment
       project = parts.slice(0, seriesIdx + 1).join('_');
+    } else if (parts.length > 2 && /^\d{4}$/.test(parts[1])) {
+      // Year-in-position-1 pattern: e.g. POB_2026_VT_OFF → project = POB_2026
+      // The year anchors the project boundary; VT/GFX/EVENT etc. are episode markers
+      project = parts[0] + '_' + parts[1];
     } else {
-      // No series found — project = everything before the wsType segment(s)
+      // No series and no year — project = everything before the wsType segment(s)
       project = parts.slice(0, parts.length - typeLen).join('_') || name;
     }
     var cap   = parseFloat(c[colC]) || 0;
@@ -1110,28 +1123,35 @@ function buildShareHTML(rows, types, colors, exportedAt, sourceNames, allocMap) 
   }
 
   // ── tab 4: OFF vs Quote ────────────────────────────────────────────────────
+  var QV_SET_SHARE = new Set(['OFF','OFF2','OFF_2','RUSHES','MUSIC','MEDIA','MEDIA_A','MEDIA_B']);
   var qvProjs = {};
   rows.forEach(function(r){
-    if (r.wsType !== 'OFF' && r.wsType !== 'OFF2' && r.wsType !== 'OFF_2') return;
-    if (!qvProjs[r.project]) qvProjs[r.project] = {off:[],off2:[],off_2:[]};
-    if (r.wsType==='OFF')   qvProjs[r.project].off.push(r);
-    if (r.wsType==='OFF2')  qvProjs[r.project].off2.push(r);
-    if (r.wsType==='OFF_2') qvProjs[r.project].off_2.push(r);
+    if (!QV_SET_SHARE.has(r.wsType)) return;
+    if (!qvProjs[r.project]) qvProjs[r.project] = {};
+    if (!qvProjs[r.project][r.wsType]) qvProjs[r.project][r.wsType] = [];
+    qvProjs[r.project][r.wsType].push(r);
   });
   var qvEntries = Object.entries(qvProjs).sort(function(a,b){return a[0].localeCompare(b[0]);});
   var hasAlloc  = Object.keys(allocMap).length > 0;
 
   var qvCards = qvEntries.map(function(en){
-    var nm = en[0], p = en[1];
-    var offGB  = p.off.reduce(function(s,r){return s+r.used;},0);
-    var off2GB = p.off2.reduce(function(s,r){return s+r.used;},0);
-    var off_2GB= p.off_2.reduce(function(s,r){return s+r.used;},0);
-    var totalGB = offGB + off2GB + off_2GB;
+    var nm = en[0], typeMap = en[1];
+
+    var typeOrder = ['OFF','OFF2','OFF_2','RUSHES','MUSIC','MEDIA','MEDIA_A','MEDIA_B'];
+    var allTypes  = Object.keys(typeMap).sort(function(a,b){
+      var ia = typeOrder.indexOf(a), ib = typeOrder.indexOf(b);
+      if (ia < 0) ia = 99; if (ib < 0) ib = 99;
+      return ia !== ib ? ia - ib : a.localeCompare(b);
+    });
+
+    var totalGB = allTypes.reduce(function(s,t){
+      return s + typeMap[t].reduce(function(s2,r){return s2+r.used;},0);
+    }, 0);
     var totalTB = totalGB / 1000;
 
     function fTB(gb){ return gb>=1000?(gb/1000).toFixed(2)+' TB':gb.toFixed(0)+' GB'; }
     function makeRows(arr, lbl){
-      if(!arr.length) return '';
+      if(!arr||!arr.length) return '';
       return '<div class="qv-row" style="margin-bottom:2px"><span class="qv-rl" style="font-weight:500;color:var(--text)">'+lbl+'</span>'
         +'<span class="qv-rv" style="color:var(--muted)">'+fTB(arr.reduce(function(s,r){return s+r.used;},0))+'</span></div>'
         +arr.map(function(r){
@@ -1139,7 +1159,7 @@ function buildShareHTML(rows, types, colors, exportedAt, sourceNames, allocMap) 
             +'<span class="qv-rv">'+fTB(r.used)+'</span></div>';
         }).join('');
     }
-    var rowsHTML = makeRows(p.off,'OFF')+makeRows(p.off2,'OFF2')+makeRows(p.off_2,'OFF_2');
+    var rowsHTML = allTypes.map(function(t){ return makeRows(typeMap[t], t); }).join('');
 
     var quotaTB   = allocMap[nm] || null;
     var cardClass = '', barHTML = '';
@@ -1164,7 +1184,7 @@ function buildShareHTML(rows, types, colors, exportedAt, sourceNames, allocMap) 
       +'<div class="qv-name">'+e(nm)+'</div>'
       +rowsHTML
       +'<hr class="qv-divider">'
-      +'<div class="qv-totrow"><span class="qv-totl">Total OFF storage used</span>'
+      +'<div class="qv-totrow"><span class="qv-totl">Total storage used</span>'
       +'<span class="qv-totv">'+fTB(totalGB)+'</span></div>'
       +barHTML
       +'</div>';
@@ -1175,9 +1195,9 @@ function buildShareHTML(rows, types, colors, exportedAt, sourceNames, allocMap) 
     : '<em style="color:var(--muted2)">No quote file loaded</em>';
 
   var qvHTML = qvEntries.length
-    ? '<div class="qv-wrap"><div class="qv-info">Total OFF + OFF2 + OFF_2 storage vs allocated quota. &nbsp;&middot;&nbsp; '+qvLegend+'</div>'
+    ? '<div class="qv-wrap"><div class="qv-info">Total storage (OFF + OFF2 + OFF_2 + RUSHES + MUSIC + MEDIA) vs allocated quota. &nbsp;&middot;&nbsp; '+qvLegend+'</div>'
       +'<div class="qv-grid" id="qv-grid">'+qvCards+'</div></div>'
-    : '<div class="qv-empty">No projects with OFF, OFF2 or OFF_2 workspace types found.</div>';
+    : '<div class="qv-empty">No projects with counted storage workspace types found.</div>';
 
   return '<!DOCTYPE html><html lang="en"><head>'
     +'<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">'
@@ -1268,14 +1288,13 @@ function renderQV() {
   if (!panel) return;
   var q = (document.getElementById('qv-q') ? document.getElementById('qv-q').value : '').toLowerCase();
 
-  // Sum OFF + OFF2 + OFF_2 storage (in GB) per project
+  // Sum all QV_TYPES storage (in GB) per project — keyed by wsType
   var projs = {};
   allRows.forEach(function(r){
-    if (r.wsType !== 'OFF' && r.wsType !== 'OFF2' && r.wsType !== 'OFF_2') return;
-    if (!projs[r.project]) projs[r.project] = { off:[], off2:[], off_2:[] };
-    if (r.wsType==='OFF')   projs[r.project].off.push(r);
-    if (r.wsType==='OFF2')  projs[r.project].off2.push(r);
-    if (r.wsType==='OFF_2') projs[r.project].off_2.push(r);
+    if (!QV_TYPES.has(r.wsType)) return;
+    if (!projs[r.project]) projs[r.project] = {};
+    if (!projs[r.project][r.wsType]) projs[r.project][r.wsType] = [];
+    projs[r.project][r.wsType].push(r);
   });
 
   var entries = Object.entries(projs)
@@ -1283,23 +1302,30 @@ function renderQV() {
     .filter(function(e){ return !q || e[0].toLowerCase().indexOf(q) >= 0; });
 
   if (!entries.length) {
-    panel.innerHTML = '<div class="qv-empty">No projects with OFF, OFF2 or OFF_2 workspace types found.</div>';
+    panel.innerHTML = '<div class="qv-empty">No projects with counted storage workspace types found.</div>';
     return;
   }
 
   var hasAlloc = Object.keys(allocations).length > 0;
 
   var cards = entries.map(function(entry){
-    var name = entry[0], p = entry[1];
-    var offGB  = p.off.reduce(function(s,r){ return s+r.used; }, 0);
-    var off2GB = p.off2.reduce(function(s,r){ return s+r.used; }, 0);
-    var off_2GB= p.off_2.reduce(function(s,r){ return s+r.used; }, 0);
-    var totalGB = offGB + off2GB + off_2GB;
+    var name = entry[0], typeMap = entry[1];
+
+    // Ordered type labels — OFF types first, then extras alphabetically
+    var typeOrder = ['OFF','OFF2','OFF_2','RUSHES','MUSIC','MEDIA','MEDIA_A','MEDIA_B'];
+    var allTypes  = Object.keys(typeMap).sort(function(a,b){
+      var ia = typeOrder.indexOf(a), ib = typeOrder.indexOf(b);
+      if (ia < 0) ia = 99; if (ib < 0) ib = 99;
+      return ia !== ib ? ia - ib : a.localeCompare(b);
+    });
+
+    var totalGB = allTypes.reduce(function(s, t){
+      return s + typeMap[t].reduce(function(s2,r){ return s2+r.used; }, 0);
+    }, 0);
     var totalTB = totalGB / 1000;
 
-    // Workspace rows
     function makeRows(arr, label) {
-      if (!arr.length) return '';
+      if (!arr || !arr.length) return '';
       return '<div class="qv-row" style="margin-bottom:2px"><span class="qv-rl" style="font-weight:500;color:var(--text)">'+label+'</span>'
         +'<span class="qv-rv" style="color:var(--muted)">'+fmtTB(arr.reduce(function(s,r){return s+r.used;},0))+'</span></div>'
         + arr.map(function(r){
@@ -1307,22 +1333,18 @@ function renderQV() {
               +'<span class="qv-rv">'+fmtTB(r.used)+'</span></div>';
           }).join('');
     }
-    var rowsHTML = makeRows(p.off,'OFF') + makeRows(p.off2,'OFF2') + makeRows(p.off_2,'OFF_2');
+    var rowsHTML = allTypes.map(function(t){ return makeRows(typeMap[t], t); }).join('');
 
     // Quota comparison
     var quotaTB  = allocations[name] || null;
-    var cardClass = '';
-    var barHTML   = '';
-    var pctHTML   = '';
-
+    var cardClass = '', barHTML = '';
     if (quotaTB !== null) {
-      var pct      = (totalTB / quotaTB) * 100;
-      var barPct   = Math.min(100, pct);
+      var pct    = (totalTB / quotaTB) * 100;
+      var barPct = Math.min(100, pct);
       var barColor, textColor;
       if (pct >= 90)      { barColor='#ef4444'; textColor='#f87171'; cardClass='qv-crit'; }
       else if (pct >= 80) { barColor='#f97316'; textColor='#fb923c'; cardClass='qv-warn'; }
       else                { barColor='#e8e8f0'; textColor='#e8e8f0'; }
-
       barHTML = '<div class="qv-bar-section">'
         +'<div class="qv-bar-labels">'
         +'<span class="qv-bar-lbl">vs Quota</span>'
@@ -1340,7 +1362,7 @@ function renderQV() {
       + rowsHTML
       +'<hr class="qv-divider">'
       +'<div class="qv-totrow">'
-      +'<span class="qv-totl">Total OFF storage used</span>'
+      +'<span class="qv-totl">Total storage used</span>'
       +'<span class="qv-totv">'+fmtTB(totalGB)+'</span>'
       +'</div>'
       + barHTML
@@ -1354,7 +1376,7 @@ function renderQV() {
     : '<em style="color:var(--muted2)">Allocation data loading&hellip;</em>';
 
   panel.innerHTML = '<div class="qv-wrap">'
-    +'<div class="qv-info">Total OFF + OFF2 + OFF_2 storage used per project vs NEXIS quota from allocation sheet. &nbsp;&middot;&nbsp; '+legend+'</div>'
+    +'<div class="qv-info">Total storage (OFF + OFF2 + OFF_2 + RUSHES + MUSIC + MEDIA) used per project vs NEXIS quota. &nbsp;&middot;&nbsp; '+legend+'</div>'
     +'<div class="qv-grid">'+cards+'</div>'
     +'</div>';
 }
