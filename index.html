@@ -275,7 +275,7 @@ footer{padding:20px 40px;border-top:1px solid var(--border);display:flex;align-i
 </footer>
 
 <script>
-const ALLOWED = new Set(['OFF','OFF2','OFF_2','FD','ON','PROJ','RENDER','HDR','SDR','ONLINE']);
+const ALLOWED = new Set(['OFF','OFF2','OFF_2','FD','ON','PROJ','RENDER','RENDERS','HDR','SDR','ONLINE','RUSHES','MUSIC']);
 const COLORS  = ['#e8ff47','#ff6b35','#3ddc84','#60a5fa','#f472b6','#a78bfa','#fb923c','#34d399','#f87171','#38bdf8'];
 const DNX_GB  = 20;
 const files = {};
@@ -304,10 +304,7 @@ ucard.addEventListener('drop', e => {
   readFiles(e.dataTransfer.files);
 });
 
-// "Add more" label in dashboard (label wraps hidden input so click works natively)
-document.getElementById('csv-more').onchange = function() {
-  if (this.files && this.files.length) readFiles(this.files);
-};
+// "Add more" input is injected by refreshUI() — onchange is wired there via re-attach (line ~464)
 
 function readFiles(fileList) {
   Array.from(fileList).filter(f => f.name.toLowerCase().endsWith('.csv')).forEach(function(file) {
@@ -382,7 +379,7 @@ function parseCSV(text, src) {
     var c = lines[i].split(',');
     if (c.length < 2) continue;
     var name    = c[cN].replace(/['"]/g,'').trim();
-    var parts   = name.split('_');
+    var parts   = name.split('_').map(function(p){ return p.trim(); });
     // ── Workspace type: last segment(s) ───────────────────────────────────
     // Detect OFF_2 (last two parts are 'OFF' and '2')
     var wsType, typeLen;
@@ -649,9 +646,12 @@ function renderDNxLB() {
 // Builds a fully pre-rendered static HTML file — no JS needed to view data.
 // All three tabs are rendered into the HTML at build time.
 // JS only handles tab switching (works when opened locally; degrades gracefully on Drive).
+var _shareBusy = false;
 function shareView() {
-  if (!allRows.length) return;
+  if (!allRows.length || _shareBusy) return;
+  _shareBusy = true;
   var btn = document.querySelector('.btn-share');
+  btn.disabled = true;
   btn.textContent = 'Building\u2026';
 
   var exportedAt  = new Date().toLocaleString('en-GB');
@@ -665,7 +665,11 @@ function shareView() {
   a.download = 'racoon-nexis-' + new Date().toISOString().slice(0,10) + '.html';
   document.body.appendChild(a); a.click(); document.body.removeChild(a);
   setTimeout(function(){ URL.revokeObjectURL(url); }, 10000);
-  btn.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg> Share View';
+  setTimeout(function(){
+    _shareBusy = false;
+    btn.disabled = false;
+    btn.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg> Share View';
+  }, 2000);
 }
 
 // Pre-renders all content at build time — static HTML, no JS needed for data display
@@ -1363,43 +1367,6 @@ function fmtTB(gb) {
 
 function fmt(g) { return g >= 1000 ? (g/1000).toFixed(2)+' TB' : g.toFixed(0)+' GB'; }
 function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
-</script>
-<script>
-/* Supplementary event wiring for Google Sites iframe compatibility.
-   Mirrors existing onclick attrs — does not replace them. */
-(function() {
-  function ready(fn) {
-    if (document.readyState !== 'loading') fn();
-    else document.addEventListener('DOMContentLoaded', fn);
-  }
-  ready(function() {
-    /* Tab buttons */
-    ['ws','proj','dnx','qv'].forEach(function(v) {
-      var el = document.getElementById('tab-' + v);
-      if (el) el.addEventListener('click', function() {
-        if (typeof switchView === 'function') switchView(v);
-        else if (typeof showTab === 'function') showTab(v);
-      });
-    });
-    /* Build button */
-    var bv = document.getElementById('btn-view');
-    if (bv) bv.addEventListener('click', function() {
-      if (typeof buildDashboard === 'function') buildDashboard();
-    });
-    /* Share button */
-    document.querySelectorAll('.btn-share').forEach(function(el) {
-      el.addEventListener('click', function() {
-        if (typeof shareView === 'function') shareView();
-      });
-    });
-    /* File input */
-    var fi = document.getElementById('csv-input');
-    if (fi) fi.addEventListener('change', function() {
-      if (this.files && this.files.length && typeof readFiles === 'function')
-        readFiles(this.files);
-    });
-  });
-})();
 </script>
 </body>
 </html>
